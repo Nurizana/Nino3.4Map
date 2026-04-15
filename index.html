@@ -11,10 +11,7 @@
         body { margin: 0; padding: 0; }
         #map { width: 100vw; height: 100vh; }
 
-        /* Modified Legend Styling 
-           We removed 'position: fixed' because Leaflet will now automatically 
-           stack these properly under the top-left layer control!
-        */
+        /* Legend Styling - Adjusted for bottom-left positioning */
         .info-legend {
             background: rgba(255, 255, 255, 0.9);
             padding: 10px 15px;
@@ -24,7 +21,7 @@
             font-size: 13px;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
             display: none; /* Hidden by default, toggled by JS */
-            margin-top: 10px !important; /* Space between controls */
+            margin-bottom: 10px !important; /* Space between controls when stacked */
             pointer-events: auto;
         }
 
@@ -49,9 +46,9 @@
         
         /* Custom tooltip for the grid */
         .grid-tooltip {
-            background-color: rgba(0, 0, 0, 0.7);
+            background-color: rgba(0, 0, 0, 0.8);
             color: white;
-            border: none;
+            border: 1px solid #ffff66;
             font-weight: bold;
         }
     </style>
@@ -66,9 +63,15 @@
         5°N to 5°S, 170°W to 120°W
     </div>
 
+    <div id="leg-grid" class="info-legend">
+        <b>5° Global Grid</b><br>
+        <span style="color: #cccc00; font-weight: bold; letter-spacing: 2px;">- - - - - -</span><br>
+        Light Yellow Lines
+    </div>
+
     <div id="leg-radar" class="info-legend radar-legend">
         <b>Live Weather Radar</b><br>
-        Updated: <span id="time-display">Waiting...</span><br>
+        Updated: <span id="time-display">Fetching live data...</span><br>
         <div class="color-bar"></div>
         <div class="color-labels">
             <span>0.1</span>
@@ -94,7 +97,7 @@
             attribution: 'Esri Labels'
         }).addTo(map);
 
-        // 3. LAYER: Niño 3.4 Box (Thickened)
+        // 3. LAYER: Niño 3.4 Box
         var ninoBox = L.rectangle([[-5, -170], [5, -120]], {
             color: 'green',
             weight: 4,          
@@ -102,7 +105,7 @@
             dashArray: '8, 8'   
         }).addTo(map);
 
-        // 4. LAYER: 5-Degree Grid with Tooltips
+        // 4. LAYER: 5-Degree Grid with Tooltips (Light Yellow)
         var gridFeatures = [];
         for (var lat = -85; lat <= 85; lat += 5) {
             var latLabel = lat > 0 ? lat + "° N" : (lat < 0 ? Math.abs(lat) + "° S" : "Equator");
@@ -122,18 +125,32 @@
             });
         }
         var gridLayer = L.geoJSON(gridFeatures, {
-            style: { color: "#666", weight: 1, opacity: 0.5, dashArray: "2, 4" },
+            style: { color: "#ffff66", weight: 1.5, opacity: 0.7, dashArray: "4, 4" }, // Light Yellow color
             onEachFeature: function (feature, layer) {
                 layer.bindTooltip(feature.properties.name, { sticky: true, className: 'grid-tooltip' });
             }
         });
 
-        // 5. LAYER: Live Radar Data
-        // Fix for CORB error: Initialize with a dummy transparent 1x1 image instead of a blank string
-        var radarLayer = L.tileLayer('data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==', { 
+        // 5. LAYER: Live Radar Data (CORB Fix applied)
+        // We initialize with a guaranteed safe transparent pixel to avoid CORB entirely.
+        var radarLayer = L.tileLayer('https://upload.wikimedia.org/wikipedia/commons/c/ce/Transparent.gif', { 
             opacity: 0.6, 
             attribution: 'RainViewer' 
         });
+
+        // Fetch live data immediately in the background on page load
+        fetch('https://api.rainviewer.com/public/weather-maps.json')
+            .then(res => res.json())
+            .then(data => {
+                var latestTime = data.radar.past[data.radar.past.length - 1].time;
+                // Once fetched, silently update the layer URL under the hood
+                radarLayer.setUrl('https://tilecache.rainviewer.com/v2/radar/' + latestTime + '/256/{z}/{x}/{y}/2/1_1.png');
+                document.getElementById('time-display').innerText = new Date(latestTime * 1000).toUTCString();
+            })
+            .catch(e => {
+                console.error("Radar Fetch Error: ", e);
+                document.getElementById('time-display').innerText = "Data temporarily unavailable";
+            });
 
         // 6. Layer Controls (Top Left)
         var overlayMaps = {
@@ -143,47 +160,33 @@
         };
         L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
 
-        // 7. Embed Legends as proper Top-Left Leaflet Controls
-        // This guarantees they stack right below the layer selection tab
+        // 7. Embed Legends as Bottom-Left Leaflet Controls
         var LegendControl = L.Control.extend({
-            options: { position: 'topleft' },
+            options: { position: 'bottomleft' },
             initialize: function(id) { this._id = id; },
             onAdd: function (map) {
                 return L.DomUtil.get(this._id);
             }
         });
-        map.addControl(new LegendControl('leg-nino'));
+        
+        // Add legends to the map framework
         map.addControl(new LegendControl('leg-radar'));
+        map.addControl(new LegendControl('leg-grid'));
+        map.addControl(new LegendControl('leg-nino'));
 
-        // Since Niño box is active on load, show its legend
+        // Since Niño box is active on load, show its legend immediately
         document.getElementById('leg-nino').style.display = 'block';
 
-        // 8. Dynamic Legend Toggling & Live Fetching
+        // 8. Dynamic Legend Toggling
         map.on('overlayadd', function(event) {
-            if (event.name === "Niño 3.4 Region") {
-                document.getElementById('leg-nino').style.display = 'block';
-            }
-            if (event.name === "Live Radar") {
-                document.getElementById('leg-radar').style.display = 'block';
-                document.getElementById('time-display').innerText = "Fetching live data...";
-                
-                // Fetch fresh radar data ONLY when the user turns the layer on
-                fetch('https://api.rainviewer.com/public/weather-maps.json')
-                    .then(res => res.json())
-                    .then(data => {
-                        var latestTime = data.radar.past[data.radar.past.length - 1].time;
-                        radarLayer.setUrl('https://tilecache.rainviewer.com/v2/radar/' + latestTime + '/256/{z}/{x}/{y}/2/1_1.png');
-                        document.getElementById('time-display').innerText = new Date(latestTime * 1000).toUTCString();
-                    })
-                    .catch(e => {
-                        console.error("Radar Fetch Error: ", e);
-                        document.getElementById('time-display').innerText = "Data temporarily unavailable";
-                    });
-            }
+            if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'block';
+            if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'block';
+            if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'block';
         });
 
         map.on('overlayremove', function(event) {
             if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'none';
+            if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'none';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'none';
         });
     </script>
