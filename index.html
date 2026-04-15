@@ -27,15 +27,19 @@
 
         .radar-legend { width: 230px; }
 
-        /* Radar Color Bar */
+        /* Color Bars */
         .color-bar {
             width: 100%;
             height: 12px;
             margin-top: 8px;
-            background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff);
             border: 1px solid #777;
             border-radius: 2px;
         }
+        
+        .radar-gradient { background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); }
+        .sst-gradient { background: linear-gradient(to right, #000080, #0000ff, #00ffff, #ffff00, #ff0000, #800000); }
+        .ssta-gradient { background: linear-gradient(to right, #0000ff, #ffffff, #ff0000); }
+
         .color-labels {
             display: flex;
             justify-content: space-between;
@@ -72,15 +76,27 @@
     <div id="leg-radar" class="info-legend radar-legend">
         <b>Live Weather Radar</b><br>
         Updated: <span id="time-display">Fetching live data...</span><br>
-        <div class="color-bar"></div>
+        <div class="color-bar radar-gradient"></div>
         <div class="color-labels">
-            <span>0.1</span>
-            <span>1</span>
-            <span>5</span>
-            <span>10</span>
-            <span>25</span>
-            <span>50</span>
-            <span>100+ mm/h</span>
+            <span>0.1</span><span>1</span><span>5</span><span>10</span><span>25</span><span>50</span><span>100+ mm/h</span>
+        </div>
+    </div>
+
+    <div id="leg-sst" class="info-legend radar-legend">
+        <b>Sea Surface Temp (SST)</b><br>
+        Updated Daily (NASA JPL)<br>
+        <div class="color-bar sst-gradient"></div>
+        <div class="color-labels">
+            <span>0°C</span><span>15°C</span><span>35°C</span>
+        </div>
+    </div>
+
+    <div id="leg-ssta" class="info-legend radar-legend">
+        <b>SST Anomaly</b><br>
+        Variance from Long-Term Avg<br>
+        <div class="color-bar ssta-gradient"></div>
+        <div class="color-labels">
+            <span>-5°C</span><span>0°C</span><span>+5°C</span>
         </div>
     </div>
 
@@ -101,17 +117,15 @@
             attribution: 'Esri Labels'
         }).addTo(map);
 
-        // 3. LAYER: Niño 3.4 Box (FIXED)
-        // Wrapped in a LayerGroup to draw in both standard (-180 to 180) and wrapped (180 to 360) map worlds
+        // 3. LAYER: Niño 3.4 Box
         var boxStyle = { color: 'green', weight: 4, fill: false, dashArray: '8, 8' };
         var ninoBox = L.layerGroup([
-            L.rectangle([[-5, -170], [5, -120]], boxStyle), // Standard coordinates
-            L.rectangle([[-5, 190], [5, 240]], boxStyle)    // Wrapped coordinates for panning east from Asia
+            L.rectangle([[-5, -170], [5, -120]], boxStyle), 
+            L.rectangle([[-5, 190], [5, 240]], boxStyle)    
         ]).addTo(map);
 
         // 4. LAYER: 5-Degree Grid
         var gridFeatures = [];
-        // Generate Latitudes (-85 to 85)
         for (var lat = -85; lat <= 85; lat += 5) {
             var latLabel = lat > 0 ? lat + "° N" : (lat < 0 ? Math.abs(lat) + "° S" : "Equator");
             gridFeatures.push({
@@ -120,11 +134,9 @@
                 "properties": { "name": latLabel }
             });
         }
-        // Generate Longitudes (-360 to +360 to wrap around the map)
         for (var lon = -360; lon <= 360; lon += 5) {
             var trueLon = ((lon % 360) + 360) % 360; 
             if (trueLon > 180) trueLon -= 360;
-            
             var lonLabel = trueLon > 0 ? trueLon + "° E" : (trueLon < 0 ? Math.abs(trueLon) + "° W" : "Prime Meridian");
             if (trueLon === 180 || trueLon === -180) lonLabel = "180° Anti-Meridian";
 
@@ -141,66 +153,83 @@
             }
         });
 
-        // 5. LAYER: Live Radar Data (FIXED)
+        // 5. LAYER: Live Radar Data
         var radarGroup = L.layerGroup();
-
         fetch('https://api.rainviewer.com/public/weather-maps.json')
             .then(res => res.json())
             .then(data => {
                 var pastData = data.radar.past[data.radar.past.length - 1];
-                var latestTime = pastData.time;
-                var path = pastData.path;
-
-                // Fixed URL string: added data.host and the missing /256/ tile size 
-                var liveRadarUrl = data.host + path + '/256/{z}/{x}/{y}/2/1_1.png';
-                
-                var realRadarLayer = L.tileLayer(liveRadarUrl, { 
-                    opacity: 0.6, 
-                    attribution: 'RainViewer' 
-                });
-
+                var liveRadarUrl = data.host + pastData.path + '/256/{z}/{x}/{y}/2/1_1.png';
+                var realRadarLayer = L.tileLayer(liveRadarUrl, { opacity: 0.6, attribution: 'RainViewer' });
                 radarGroup.addLayer(realRadarLayer);
-                document.getElementById('time-display').innerText = new Date(latestTime * 1000).toUTCString();
+                document.getElementById('time-display').innerText = new Date(pastData.time * 1000).toUTCString();
             })
             .catch(e => {
-                console.error("Radar Fetch Error: ", e);
                 document.getElementById('time-display').innerText = "Data temporarily unavailable";
             });
 
-        // 6. Layer Controls (Top Left)
+        // 6. NEW LAYERS: NOAA CoastWatch ERDDAP WMS (SST & SST Anomaly)
+        // Note: Missing 'time' parameter defaults to the most recent live data slice automatically.
+        var sstLayer = L.tileLayer.wms('https://coastwatch.pfeg.noaa.gov/erddap/wms/jplMURSST41/request', {
+            layers: 'jplMURSST41:analysed_sst',
+            format: 'image/png',
+            transparent: true,
+            opacity: 0.65,
+            attribution: 'NASA JPL / NOAA CoastWatch',
+            COLORSCALERANGE: '0,35' // Locks the color mapping between 0C and 35C
+        });
+
+        var sstAnomLayer = L.tileLayer.wms('https://coastwatch.pfeg.noaa.gov/erddap/wms/jplMURSST41anom1day/request', {
+            layers: 'jplMURSST41anom1day:sstAnom',
+            format: 'image/png',
+            transparent: true,
+            opacity: 0.7,
+            attribution: 'NASA JPL / NOAA CoastWatch',
+            COLORSCALERANGE: '-5,5' // Locks the color mapping between -5C and +5C
+        });
+
+        // 7. Layer Controls (Top Left)
         var overlayMaps = {
             "Niño 3.4 Region": ninoBox,
             "5° Global Grid": gridLayer,
-            "Live Radar": radarGroup
+            "Live Radar": radarGroup,
+            "Sea Surface Temp (SST)": sstLayer,
+            "SST Anomaly": sstAnomLayer
         };
         L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
 
-        // 7. Embed Legends as Bottom-Left Controls
+        // 8. Embed Legends as Bottom-Left Controls
         var LegendControl = L.Control.extend({
             options: { position: 'bottomleft' },
             initialize: function(id) { this._id = id; },
-            onAdd: function (map) {
-                return L.DomUtil.get(this._id);
-            }
+            onAdd: function (map) { return L.DomUtil.get(this._id); }
         });
         
+        // Add all legends to map layout (they remain hidden until their layer is toggled)
+        map.addControl(new LegendControl('leg-ssta'));
+        map.addControl(new LegendControl('leg-sst'));
         map.addControl(new LegendControl('leg-radar'));
         map.addControl(new LegendControl('leg-grid'));
         map.addControl(new LegendControl('leg-nino'));
 
+        // Default open layer display
         document.getElementById('leg-nino').style.display = 'block';
 
-        // 8. Dynamic Legend Toggling
+        // 9. Dynamic Legend Toggling
         map.on('overlayadd', function(event) {
             if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'block';
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'block';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'block';
+            if (event.name === "Sea Surface Temp (SST)") document.getElementById('leg-sst').style.display = 'block';
+            if (event.name === "SST Anomaly") document.getElementById('leg-ssta').style.display = 'block';
         });
 
         map.on('overlayremove', function(event) {
             if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'none';
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'none';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'none';
+            if (event.name === "Sea Surface Temp (SST)") document.getElementById('leg-sst').style.display = 'none';
+            if (event.name === "SST Anomaly") document.getElementById('leg-ssta').style.display = 'none';
         });
     </script>
 </body>
