@@ -1,95 +1,137 @@
-import folium
-from datetime import datetime
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Niño 3.4 Interactive Map</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-# =======================================================
-# 1. REPLACE THIS URL WITH THE ACTUAL LINK TO THE GIF
-# =======================================================
-# Example: "https://www.noaa.gov/path/to/figure01.gif"
-LIVE_GIF_URL = "https://YOUR_WEBSITE_LINK_HERE/figure01.gif"
+    <style>
+        /* Make the map take up the whole screen */
+        body { margin: 0; padding: 0; }
+        #map { width: 100vw; height: 100vh; }
 
-# 2. Initialize Map with Blue Ocean Basemap
-m = folium.Map(
-    location=[0, -150], 
-    zoom_start=3, 
-    tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
-    attr='Esri Ocean Base'
-)
+        /* Style the legends so they hover over the map */
+        .legend-box {
+            position: fixed;
+            right: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 15px;
+            border: 2px solid #333;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            z-index: 9999;
+            display: none; /* Hidden by default */
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+        }
 
-# 3. Add Labels Layer
-folium.TileLayer(
-    tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}',
-    attr='Esri Labels',
-    name='Ocean Labels',
-    overlay=True,
-    control=True
-).add_to(m)
+        /* Stack legends so they don't overlap if multiple are open */
+        #leg-nino { top: 15px; }
+        #leg-radar { top: 90px; }
+        #leg-gif { top: 165px; }
+    </style>
+</head>
+<body>
 
-# --- LAYER 1: Niño 3.4 Box ---
-nino_group = folium.FeatureGroup(name="Niño 3.4 Region", show=True)
-folium.Rectangle(
-    bounds=[[-5, -170], [5, -120]],
-    color='green',
-    weight=1.5,
-    fill=False,
-    dash_array='5, 5',
-    tooltip="Niño 3.4 (5N-5S, 170W-120W)"
-).add_to(nino_group)
-nino_group.add_to(m)
+    <div id="map"></div>
 
-# --- LAYER 2: Live Radar ---
-radar_group = folium.FeatureGroup(name="Live Radar", show=False)
-folium.TileLayer(
-    tiles='https://tilecache.rainviewer.com/v2/radar/nowcast_5/256/{z}/{x}/{y}/1/1_1.png',
-    attr='RainViewer',
-    overlay=True,
-).add_to(radar_group)
-radar_group.add_to(m)
+    <div id="leg-nino" class="legend-box">
+        <b>Niño 3.4 Region</b><br>
+        <span style="color: green;">- - - - - - -</span><br>
+        5°N to 5°S, 170°W to 120°W
+    </div>
 
-# --- LAYER 3: Live Image Overlay (figure01.gif) ---
-image_group = folium.FeatureGroup(name="Figure 01 Overlay", show=False)
+    <div id="leg-radar" class="legend-box">
+        <b>Live Weather Radar</b><br>
+        Updated: <span id="time-display"></span><br>
+        Source: RainViewer API
+    </div>
 
-# Using the live URL directly so it ALWAYS fetches the latest version!
-img_bounds = [[-15, -175], [15, -115]] # Adjust these bounds if needed to fit the image
-folium.RasterLayers.ImageOverlay(
-    image=LIVE_GIF_URL,
-    bounds=img_bounds,
-    opacity=0.6,
-    name="Live GIF Data"
-).add_to(image_group)
-image_group.add_to(m)
+    <div id="leg-gif" class="legend-box">
+        <b>Sea Surface Temp (SST)</b><br>
+        Live Data Overlay<br>
+        Source: NOAA
+    </div>
 
-# --- DYNAMIC LEGEND SYSTEM ---
-legend_html = f'''
-<style>
-    .dynamic-legend {{
-        position: fixed; top: 10px; right: 10px; width: 200px; 
-        z-index:9999; background: white; padding: 10px; 
-        border-radius: 5px; border: 2px solid #333; display: none;
-        font-family: Arial; font-size: 12px;
-    }}
-</style>
-<div id="leg-nino" class="dynamic-legend"><b>Niño 3.4</b><br>Green Dashed Box<br>5°N-5°S</div>
-<div id="leg-radar" class="dynamic-legend"><b>Live Radar</b><br>Updated: {datetime.now().strftime('%H:%M UTC')}</div>
-<div id="leg-gif" class="dynamic-legend"><b>Figure 01</b><br>Source: Live Remote Data</div>
+    <script>
+        // 1. Initialize the map centered on the Pacific Ocean
+        var map = L.map('map', {
+            center: [0, -150],
+            zoom: 3
+        });
 
-<script>
-    document.addEventListener('DOMContentLoaded', function() {{
-        var map = {m.get_name()};
-        function toggle() {{
-            document.getElementById('leg-nino').style.display = map.hasLayer({nino_group.get_name()}) ? 'block' : 'none';
-            document.getElementById('leg-radar').style.display = map.hasLayer({radar_group.get_name()}) ? 'block' : 'none';
-            document.getElementById('leg-gif').style.display = map.hasLayer({image_group.get_name()}) ? 'block' : 'none';
-        }}
-        map.on('overlayadd overlayremove', toggle);
-        toggle();
-    }});
-</script>
-'''
-m.get_root().html.add_child(folium.Element(legend_html))
+        // 2. Add Blue Ocean Basemap and Labels
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri Ocean Base'
+        }).addTo(map);
 
-# Top-Left Control
-folium.LayerControl(position='topleft').add_to(m)
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri Labels'
+        }).addTo(map);
 
-# Save as index.html
-m.save("index.html")
-print("Map successfully generated! Open index.html to view.")
+        // 3. Create Layer 1: Niño 3.4 Box (Turned ON by default)
+        var ninoBox = L.rectangle([[-5, -170], [5, -120]], {
+            color: 'green',
+            weight: 1.5,
+            fill: false,
+            dashArray: '5, 5'
+        }).addTo(map);
+        document.getElementById('leg-nino').style.display = 'block'; // Show legend
+
+        // 4. Create Layer 2: Live Radar (Turned OFF by default)
+        var liveRadar = L.tileLayer('https://tilecache.rainviewer.com/v2/radar/nowcast_5/256/{z}/{x}/{y}/1/1_1.png', {
+            opacity: 0.6,
+            attribution: 'RainViewer'
+        });
+
+        // 5. Create Layer 3: Live GIF Overlay (Turned OFF by default)
+        var liveGifUrl = "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_update/sstanim.gif";
+        var gifOverlay = L.imageOverlay(liveGifUrl, [[-15, -175], [15, -115]], {
+            opacity: 0.6
+        });
+
+        // 6. Add the Top-Left Control Menu
+        var overlayMaps = {
+            "Niño 3.4 Region": ninoBox,
+            "Live Radar": liveRadar,
+            "Live SST Overlay": gifOverlay
+        };
+        L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
+
+        // 7. Update radar time dynamically
+        function updateTime() {
+            var now = new Date();
+            document.getElementById('time-display').innerText = now.toUTCString();
+        }
+        updateTime(); // Run once
+
+        // 8. Make Legends Appear/Disappear when layers are clicked
+        map.on('overlayadd', function(event) {
+            if (event.name === "Niño 3.4 Region") {
+                document.getElementById('leg-nino').style.display = 'block';
+            }
+            if (event.name === "Live Radar") {
+                updateTime(); // Refresh the time when radar is turned on
+                document.getElementById('leg-radar').style.display = 'block';
+            }
+            if (event.name === "Live SST Overlay") {
+                document.getElementById('leg-gif').style.display = 'block';
+            }
+        });
+
+        map.on('overlayremove', function(event) {
+            if (event.name === "Niño 3.4 Region") {
+                document.getElementById('leg-nino').style.display = 'none';
+            }
+            if (event.name === "Live Radar") {
+                document.getElementById('leg-radar').style.display = 'none';
+            }
+            if (event.name === "Live SST Overlay") {
+                document.getElementById('leg-gif').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
