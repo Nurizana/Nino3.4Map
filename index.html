@@ -1,0 +1,95 @@
+import folium
+from datetime import datetime
+
+# =======================================================
+# 1. REPLACE THIS URL WITH THE ACTUAL LINK TO THE GIF
+# =======================================================
+# Example: "https://www.noaa.gov/path/to/figure01.gif"
+LIVE_GIF_URL = "https://YOUR_WEBSITE_LINK_HERE/figure01.gif"
+
+# 2. Initialize Map with Blue Ocean Basemap
+m = folium.Map(
+    location=[0, -150], 
+    zoom_start=3, 
+    tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+    attr='Esri Ocean Base'
+)
+
+# 3. Add Labels Layer
+folium.TileLayer(
+    tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}',
+    attr='Esri Labels',
+    name='Ocean Labels',
+    overlay=True,
+    control=True
+).add_to(m)
+
+# --- LAYER 1: Niño 3.4 Box ---
+nino_group = folium.FeatureGroup(name="Niño 3.4 Region", show=True)
+folium.Rectangle(
+    bounds=[[-5, -170], [5, -120]],
+    color='green',
+    weight=1.5,
+    fill=False,
+    dash_array='5, 5',
+    tooltip="Niño 3.4 (5N-5S, 170W-120W)"
+).add_to(nino_group)
+nino_group.add_to(m)
+
+# --- LAYER 2: Live Radar ---
+radar_group = folium.FeatureGroup(name="Live Radar", show=False)
+folium.TileLayer(
+    tiles='https://tilecache.rainviewer.com/v2/radar/nowcast_5/256/{z}/{x}/{y}/1/1_1.png',
+    attr='RainViewer',
+    overlay=True,
+).add_to(radar_group)
+radar_group.add_to(m)
+
+# --- LAYER 3: Live Image Overlay (figure01.gif) ---
+image_group = folium.FeatureGroup(name="Figure 01 Overlay", show=False)
+
+# Using the live URL directly so it ALWAYS fetches the latest version!
+img_bounds = [[-15, -175], [15, -115]] # Adjust these bounds if needed to fit the image
+folium.RasterLayers.ImageOverlay(
+    image=LIVE_GIF_URL,
+    bounds=img_bounds,
+    opacity=0.6,
+    name="Live GIF Data"
+).add_to(image_group)
+image_group.add_to(m)
+
+# --- DYNAMIC LEGEND SYSTEM ---
+legend_html = f'''
+<style>
+    .dynamic-legend {{
+        position: fixed; top: 10px; right: 10px; width: 200px; 
+        z-index:9999; background: white; padding: 10px; 
+        border-radius: 5px; border: 2px solid #333; display: none;
+        font-family: Arial; font-size: 12px;
+    }}
+</style>
+<div id="leg-nino" class="dynamic-legend"><b>Niño 3.4</b><br>Green Dashed Box<br>5°N-5°S</div>
+<div id="leg-radar" class="dynamic-legend"><b>Live Radar</b><br>Updated: {datetime.now().strftime('%H:%M UTC')}</div>
+<div id="leg-gif" class="dynamic-legend"><b>Figure 01</b><br>Source: Live Remote Data</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {{
+        var map = {m.get_name()};
+        function toggle() {{
+            document.getElementById('leg-nino').style.display = map.hasLayer({nino_group.get_name()}) ? 'block' : 'none';
+            document.getElementById('leg-radar').style.display = map.hasLayer({radar_group.get_name()}) ? 'block' : 'none';
+            document.getElementById('leg-gif').style.display = map.hasLayer({image_group.get_name()}) ? 'block' : 'none';
+        }}
+        map.on('overlayadd overlayremove', toggle);
+        toggle();
+    }});
+</script>
+'''
+m.get_root().html.add_child(folium.Element(legend_html))
+
+# Top-Left Control
+folium.LayerControl(position='topleft').add_to(m)
+
+# Save as index.html
+m.save("index.html")
+print("Map successfully generated! Open index.html to view.")
