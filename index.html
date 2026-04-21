@@ -37,7 +37,6 @@
         }
         
         .radar-gradient { background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); }
-        .sst-gradient { background: linear-gradient(to right, #000080, #0000ff, #00ffff, #ffff00, #ff0000, #800000); }
         .ssta-gradient { background: linear-gradient(to right, #0000ff, #ffffff, #ff0000); }
 
         .color-labels {
@@ -82,17 +81,8 @@
         </div>
     </div>
 
-    <div id="leg-sst" class="info-legend radar-legend">
-        <b>Sea Surface Temp (SST)</b><br>
-        Updated Daily (NASA JPL)<br>
-        <div class="color-bar sst-gradient"></div>
-        <div class="color-labels">
-            <span>0°C</span><span>15°C</span><span>35°C</span>
-        </div>
-    </div>
-
     <div id="leg-ssta" class="info-legend radar-legend">
-        <b>SST Anomaly</b><br>
+        <b>NASA SST Anomaly</b><br>
         Variance from Long-Term Avg<br>
         <div class="color-bar ssta-gradient"></div>
         <div class="color-labels">
@@ -121,7 +111,7 @@
         var boxStyle = { color: 'green', weight: 4, fill: false, dashArray: '8, 8' };
         var ninoBox = L.layerGroup([
             L.rectangle([[-5, -170], [5, -120]], boxStyle), 
-            L.rectangle([[-5, 190], [5, 240]], boxStyle)    
+            L.rectangle([[-5, 190], [5, 240]], boxStyle)   
         ]).addTo(map);
 
         // 4. LAYER: 5-Degree Grid
@@ -168,30 +158,18 @@
                 document.getElementById('time-display').innerText = "Data temporarily unavailable";
             });
 
-        // 6. NEW LAYERS: NOAA CoastWatch ERDDAP WMS (SST & SST Anomaly)
-        // Re-added: `crs: L.CRS.EPSG4326` prevents the CORB error.
-        var sstLayer = L.tileLayer.wms('https://coastwatch.pfeg.noaa.gov/erddap/wms/jplMURSST41/request', {
-            layers: 'jplMURSST41:analysed_sst',
-            format: 'image/png',
-            transparent: true,
-            version: '1.3.0',
-            crs: L.CRS.EPSG4326,
-            opacity: 0.65,
-            attribution: 'NASA JPL / NOAA CoastWatch',
-            colorBarMinimum: 0,
-            colorBarMaximum: 35
-        });
-
-        var sstAnomLayer = L.tileLayer.wms('https://coastwatch.pfeg.noaa.gov/erddap/wms/jplMURSST41anom1day/request', {
-            layers: 'jplMURSST41anom1day:sstAnom',
-            format: 'image/png',
-            transparent: true,
-            version: '1.3.0',
-            crs: L.CRS.EPSG4326,
-            opacity: 0.7,
-            attribution: 'NASA JPL / NOAA CoastWatch',
-            colorBarMinimum: -5,
-            colorBarMaximum: 5 
+        // 6. NEW LAYER: NASA GIBS MUR SST Anomaly
+        // Calculate date (Current Date - 2 Days) to account for processing lag
+        const dataDate = new Date();
+        dataDate.setDate(dataDate.getDate() - 2); 
+        const timeString = dataDate.toISOString().split('T')[0];
+        
+        const nasaAnomUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/${timeString}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png`;
+        
+        var nasaAnomLayer = L.tileLayer(nasaAnomUrl, { 
+            opacity: 0.75, 
+            maxZoom: 7, 
+            attribution: 'Data &copy; NASA GIBS' 
         });
 
         // 7. Layer Controls (Top Left)
@@ -199,8 +177,7 @@
             "Niño 3.4 Region": ninoBox,
             "5° Global Grid": gridLayer,
             "Live Radar": radarGroup,
-            "Sea Surface Temp (SST)": sstLayer,
-            "SST Anomaly": sstAnomLayer
+            "NASA SST Anomaly": nasaAnomLayer
         };
         L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
 
@@ -212,7 +189,6 @@
         });
         
         map.addControl(new LegendControl('leg-ssta'));
-        map.addControl(new LegendControl('leg-sst'));
         map.addControl(new LegendControl('leg-radar'));
         map.addControl(new LegendControl('leg-grid'));
         map.addControl(new LegendControl('leg-nino'));
@@ -224,16 +200,14 @@
             if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'block';
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'block';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'block';
-            if (event.name === "Sea Surface Temp (SST)") document.getElementById('leg-sst').style.display = 'block';
-            if (event.name === "SST Anomaly") document.getElementById('leg-ssta').style.display = 'block';
+            if (event.name === "NASA SST Anomaly") document.getElementById('leg-ssta').style.display = 'block';
         });
 
         map.on('overlayremove', function(event) {
             if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'none';
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'none';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'none';
-            if (event.name === "Sea Surface Temp (SST)") document.getElementById('leg-sst').style.display = 'none';
-            if (event.name === "SST Anomaly") document.getElementById('leg-ssta').style.display = 'none';
+            if (event.name === "NASA SST Anomaly") document.getElementById('leg-ssta').style.display = 'none';
         });
     </script>
 </body>
