@@ -29,31 +29,13 @@
 
         .radar-legend { width: 230px; }
 
-        /* Discrete Color Bar for SST Anomaly */
-        .discrete-color-bar {
-            display: flex;
-            justify-content: space-between;
+        .color-bar {
+            width: 100%;
+            height: 12px;
             margin-top: 10px;
             border: 1px solid #777;
             border-radius: 2px;
-            overflow: hidden; /* Round corners for inner elements */
         }
-        
-        .color-box {
-            flex-grow: 1;
-            height: 15px;
-        }
-
-        /* Colors matched to Picture 2 discrete scale */
-        .box-blue-3 { background-color: #0000A3; } /* -3 */
-        .box-blue-2 { background-color: #3333FF; } /* -2 */
-        .box-blue-1 { background-color: #7A7AFF; } /* -1 */
-        .box-blue-p5 { background-color: #CCCCFF; } /* -0.5 */
-        .box-white { background-color: #FFFFFF; } /* 0 */
-        .box-yellow-p5 { background-color: #FFFF80; } /* 0.5 */
-        .box-yellow-1 { background-color: #FFFF00; } /* 1 */
-        .box-orange-2 { background-color: #FF8000; } /* 2 */
-        .box-red-3 { background-color: #FF0000; } /* 3 */
 
         .color-labels {
             display: flex;
@@ -94,7 +76,7 @@
     <div id="leg-radar" class="info-legend radar-legend">
         <b>Live Weather Radar</b>
         Updated: <span id="time-display">Fetching live data...</span><br>
-        <div class="discrete-color-bar radar-gradient" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); height: 12px; border-radius: 2px; border: 1px solid #777;"></div>
+        <div class="color-bar" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff);"></div>
         <div class="color-labels">
             <span>0.1</span><span>1</span><span>5</span><span>10</span><span>25</span><span>50</span><span>100+ mm/h</span>
         </div>
@@ -103,22 +85,9 @@
     <div id="leg-ssta" class="info-legend radar-legend">
         <b>Relative SST Anomalies (°C)</b>
         Updated: <span id="ssta-date-time">Loading...</span><br>
-        <div class="discrete-color-bar">
-            <div class="color-box box-blue-3"></div>
-            <div class="color-box box-blue-2"></div>
-            <div class="color-box box-blue-1"></div>
-            <div class="color-box box-blue-p5"></div>
-            <div class="color-box box-white"></div>
-            <div class="color-box box-yellow-p5"></div>
-            <div class="color-box box-yellow-1"></div>
-            <div class="color-box box-orange-2"></div>
-            <div class="color-box box-red-3"></div>
-        </div>
+        <div class="color-bar" style="background: linear-gradient(to right, #000080, #0000ff, #ffffff, #ff0000, #800000);"></div>
         <div class="color-labels">
-            <span>-3</span><span>-2</span><span>-1</span><span>-0.5</span><span>0</span><span>0.5</span><span>1</span><span>2</span><span>3</span>
-        </div>
-        <div style="font-size: 11px; color: #555; margin-top: 5px; text-align: justify; line-height: 1.2;">
-            Figure 1. Average relative sea surface temperature (SST) anomalies (°C) for the week centered on the date above. Anomalies are computed with respect to the 1991-2020 base period weekly means.
+            <span>-5°C</span><span>0°C</span><span>+5°C</span>
         </div>
     </div>
 
@@ -210,14 +179,13 @@
             attribution: 'Data &copy; NASA GIBS' 
         });
 
-        // Update the SSTA legend with calculated date and time (matching picture 2 style with time)
+        // Update the SSTA legend with calculated date
         const formatDateTimeForLegend = (date) => {
             const days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', ...Array.from({ length: 22 }, (_, i) => i + 10)];
             const day = days[date.getDate()];
             const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
             const month = monthNames[date.getMonth()];
             const year = date.getFullYear();
-            // Just use date like in Picture 2. Time is often not provided for daily data in CPC charts.
             return `${day} ${month} ${year}`;
         };
         document.getElementById('ssta-date-time').innerText = formatDateTimeForLegend(dataDate);
