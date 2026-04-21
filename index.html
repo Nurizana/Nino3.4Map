@@ -11,48 +11,67 @@
         body { margin: 0; padding: 0; }
         #map { width: 100vw; height: 100vh; }
 
-        /* Legend Styling - Bottom Left */
+        /* General Legend Styling */
         .info-legend {
             background: rgba(255, 255, 255, 0.9);
-            padding: 10px 15px;
-            border: 2px solid #333;
-            border-radius: 5px;
+            padding: 12px 18px;
+            border: 1.5px solid #666;
+            border-radius: 6px;
             font-family: Arial, sans-serif;
             font-size: 13px;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
             display: none; 
-            margin-bottom: 10px !important; 
+            margin-bottom: 12px !important; 
             pointer-events: auto;
         }
 
+        .info-legend b { font-size: 14px; margin-bottom: 5px; display: block; }
+
         .radar-legend { width: 230px; }
 
-        /* Color Bars */
-        .color-bar {
-            width: 100%;
-            height: 12px;
-            margin-top: 8px;
+        /* Discrete Color Bar for SST Anomaly */
+        .discrete-color-bar {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
             border: 1px solid #777;
             border-radius: 2px;
+            overflow: hidden; /* Round corners for inner elements */
         }
         
-        .radar-gradient { background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); }
-        .ssta-gradient { background: linear-gradient(to right, #0000ff, #ffffff, #ff0000); }
+        .color-box {
+            flex-grow: 1;
+            height: 15px;
+        }
+
+        /* Colors matched to Picture 2 discrete scale */
+        .box-blue-3 { background-color: #0000A3; } /* -3 */
+        .box-blue-2 { background-color: #3333FF; } /* -2 */
+        .box-blue-1 { background-color: #7A7AFF; } /* -1 */
+        .box-blue-p5 { background-color: #CCCCFF; } /* -0.5 */
+        .box-white { background-color: #FFFFFF; } /* 0 */
+        .box-yellow-p5 { background-color: #FFFF80; } /* 0.5 */
+        .box-yellow-1 { background-color: #FFFF00; } /* 1 */
+        .box-orange-2 { background-color: #FF8000; } /* 2 */
+        .box-red-3 { background-color: #FF0000; } /* 3 */
 
         .color-labels {
             display: flex;
             justify-content: space-between;
-            font-size: 10px;
+            font-size: 11px;
             margin-top: 3px;
             font-weight: bold;
         }
         
-        /* Custom tooltip for the grid */
-        .grid-tooltip {
-            background-color: rgba(0, 0, 0, 0.8);
+        /* Custom tooltip for the grid and country lines */
+        .grid-tooltip, .country-tooltip {
+            background-color: rgba(0, 0, 0, 0.85);
             color: white;
-            border: 1px solid #ffff66;
+            border: 1.2px solid #ffff66;
+            border-radius: 3px;
             font-weight: bold;
+            font-size: 12px;
+            padding: 3px 6px;
         }
     </style>
 </head>
@@ -61,33 +80,52 @@
     <div id="map"></div>
 
     <div id="leg-nino" class="info-legend">
-        <b>Niño 3.4 Region</b><br>
-        <span style="color: green; font-weight: bold; letter-spacing: 2px;">- - - - - -</span><br>
+        <b>Niño 3.4 Region</b>
+        <span style="color: green; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span><br>
         5°N to 5°S, 170°W to 120°W
     </div>
 
     <div id="leg-grid" class="info-legend">
-        <b>5° Global Grid</b><br>
-        <span style="color: #cccc00; font-weight: bold; letter-spacing: 2px;">- - - - - -</span><br>
+        <b>5° Global Grid</b>
+        <span style="color: #cccc00; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span><br>
         Light Yellow Lines
     </div>
 
     <div id="leg-radar" class="info-legend radar-legend">
-        <b>Live Weather Radar</b><br>
+        <b>Live Weather Radar</b>
         Updated: <span id="time-display">Fetching live data...</span><br>
-        <div class="color-bar radar-gradient"></div>
+        <div class="discrete-color-bar radar-gradient" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); height: 12px; border-radius: 2px; border: 1px solid #777;"></div>
         <div class="color-labels">
             <span>0.1</span><span>1</span><span>5</span><span>10</span><span>25</span><span>50</span><span>100+ mm/h</span>
         </div>
     </div>
 
     <div id="leg-ssta" class="info-legend radar-legend">
-        <b>NASA SST Anomaly</b><br>
-        Variance from Long-Term Avg<br>
-        <div class="color-bar ssta-gradient"></div>
-        <div class="color-labels">
-            <span>-5°C</span><span>0°C</span><span>+5°C</span>
+        <b>Relative SST Anomalies (°C)</b>
+        Updated: <span id="ssta-date-time">Loading...</span><br>
+        <div class="discrete-color-bar">
+            <div class="color-box box-blue-3"></div>
+            <div class="color-box box-blue-2"></div>
+            <div class="color-box box-blue-1"></div>
+            <div class="color-box box-blue-p5"></div>
+            <div class="color-box box-white"></div>
+            <div class="color-box box-yellow-p5"></div>
+            <div class="color-box box-yellow-1"></div>
+            <div class="color-box box-orange-2"></div>
+            <div class="color-box box-red-3"></div>
         </div>
+        <div class="color-labels">
+            <span>-3</span><span>-2</span><span>-1</span><span>-0.5</span><span>0</span><span>0.5</span><span>1</span><span>2</span><span>3</span>
+        </div>
+        <div style="font-size: 11px; color: #555; margin-top: 5px; text-align: justify; line-height: 1.2;">
+            Figure 1. Average relative sea surface temperature (SST) anomalies (°C) for the week centered on the date above. Anomalies are computed with respect to the 1991-2020 base period weekly means.
+        </div>
+    </div>
+
+    <div id="leg-countries" class="info-legend">
+        <b>Country Boundaries</b>
+        <span style="color: black; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span><br>
+        Free Country Lines (Natural Earth Data)
     </div>
 
     <script>
@@ -108,7 +146,7 @@
         }).addTo(map);
 
         // 3. LAYER: Niño 3.4 Box
-        var boxStyle = { color: 'green', weight: 4, fill: false, dashArray: '8, 8' };
+        var boxStyle = { color: 'green', weight: 3, fill: false, dashArray: '8, 8' };
         var ninoBox = L.layerGroup([
             L.rectangle([[-5, -170], [5, -120]], boxStyle), 
             L.rectangle([[-5, 190], [5, 240]], boxStyle)   
@@ -172,16 +210,49 @@
             attribution: 'Data &copy; NASA GIBS' 
         });
 
-        // 7. Layer Controls (Top Left)
+        // Update the SSTA legend with calculated date and time (matching picture 2 style with time)
+        const formatDateTimeForLegend = (date) => {
+            const days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', ...Array.from({ length: 22 }, (_, i) => i + 10)];
+            const day = days[date.getDate()];
+            const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+            const month = monthNames[date.getMonth()];
+            const year = date.getFullYear();
+            // Just use date like in Picture 2. Time is often not provided for daily data in CPC charts.
+            return `${day} ${month} ${year}`;
+        };
+        document.getElementById('ssta-date-time').innerText = formatDateTimeForLegend(dataDate);
+
+
+        // 7. NEW LAYER: Free Country Boundary Lines (Natural Earth Data via public API)
+        var countryLayer = L.layerGroup();
+        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+            .then(res => res.json())
+            .then(data => {
+                var boundaryLayer = L.geoJSON(data, {
+                    style: { color: 'black', weight: 1, opacity: 0.8, fill: false },
+                    onEachFeature: function (feature, layer) {
+                        layer.bindTooltip(feature.properties.ADMIN || feature.properties.name, { sticky: true, className: 'country-tooltip' });
+                    }
+                });
+                countryLayer.addLayer(boundaryLayer);
+            })
+            .catch(e => {
+                console.error("Country lines data temporarily unavailable:", e);
+                document.getElementById('leg-countries').innerHTML += "<br><span style='color:red;'>Data Error</span>";
+            });
+
+
+        // 8. Layer Controls (Top Left)
         var overlayMaps = {
             "Niño 3.4 Region": ninoBox,
             "5° Global Grid": gridLayer,
+            "Country Boundaries": countryLayer,
             "Live Radar": radarGroup,
             "NASA SST Anomaly": nasaAnomLayer
         };
         L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
 
-        // 8. Embed Legends as Bottom-Left Controls
+        // 9. Embed Legends as Bottom-Left Controls
         var LegendControl = L.Control.extend({
             options: { position: 'bottomleft' },
             initialize: function(id) { this._id = id; },
@@ -191,16 +262,19 @@
         map.addControl(new LegendControl('leg-ssta'));
         map.addControl(new LegendControl('leg-radar'));
         map.addControl(new LegendControl('leg-grid'));
+        map.addControl(new LegendControl('leg-countries'));
         map.addControl(new LegendControl('leg-nino'));
 
+        // Initialize state
         document.getElementById('leg-nino').style.display = 'block';
 
-        // 9. Dynamic Legend Toggling
+        // 10. Dynamic Legend Toggling
         map.on('overlayadd', function(event) {
             if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'block';
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'block';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'block';
             if (event.name === "NASA SST Anomaly") document.getElementById('leg-ssta').style.display = 'block';
+            if (event.name === "Country Boundaries") document.getElementById('leg-countries').style.display = 'block';
         });
 
         map.on('overlayremove', function(event) {
@@ -208,6 +282,7 @@
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'none';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'none';
             if (event.name === "NASA SST Anomaly") document.getElementById('leg-ssta').style.display = 'none';
+            if (event.name === "Country Boundaries") document.getElementById('leg-countries').style.display = 'none';
         });
     </script>
 </body>
