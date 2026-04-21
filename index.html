@@ -28,6 +28,9 @@
         .info-legend b { font-size: 14px; margin-bottom: 5px; display: block; }
 
         .radar-legend { width: 230px; }
+        
+        /* Adjusted width for SSTA to fit all the intervals */
+        .ssta-legend { width: 450px; }
 
         .color-bar {
             width: 100%;
@@ -45,6 +48,20 @@
             font-weight: bold;
         }
         
+        .color-labels-ssta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            margin-top: 12px;
+            font-weight: bold;
+        }
+
+        .color-labels-ssta span {
+            display: inline-block;
+            transform: rotate(-45deg);
+            transform-origin: center;
+        }
+
         /* Custom tooltip for the grid and country lines */
         .grid-tooltip, .country-tooltip {
             background-color: rgba(0, 0, 0, 0.85);
@@ -55,11 +72,59 @@
             font-size: 12px;
             padding: 3px 6px;
         }
+
+        /* Modal Styling */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            width: 85%;
+            height: 85%;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            right: 15px;
+            top: 10px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #444;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #000;
+        }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
+
+    <div id="enso-modal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="modal-close" onclick="document.getElementById('enso-modal').style.display='none'">&times;</span>
+            <iframe src="https://nurizana.github.io/index.html" style="width: 100%; height: 100%; border: none; margin-top: 15px;"></iframe>
+        </div>
+    </div>
 
     <div id="leg-nino" class="info-legend">
         <b>Niño 3.4 Region</b>
@@ -82,19 +147,18 @@
         </div>
     </div>
 
-    <div id="leg-ssta" class="info-legend radar-legend">
+    <div id="leg-ssta" class="info-legend ssta-legend">
         <b>Relative SST Anomalies (°C)</b>
         Updated: <span id="ssta-date-time">Loading...</span><br>
         <div class="color-bar" style="background: linear-gradient(to right, #000080, #0000ff, #ffffff, #ff0000, #800000);"></div>
-        <div class="color-labels">
-            <span>-5°C</span><span>0°C</span><span>+5°C</span>
+        <div class="color-labels-ssta">
+            <span>-5.0</span><span>-4.5</span><span>-4.0</span><span>-3.5</span><span>-3.0</span><span>-2.5</span><span>-2.0</span><span>-1.5</span><span>-1.0</span><span>-0.5</span><span>0.0</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>2.5</span><span>3.0</span><span>3.5</span><span>4.0</span><span>4.5</span><span>5.0</span>
         </div>
     </div>
 
     <div id="leg-countries" class="info-legend">
         <b>Country Boundaries</b>
-        <span style="color: black; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span><br>
-        Free Country Lines (Natural Earth Data)
+        <span style="color: black; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span>
     </div>
 
     <script>
@@ -219,6 +283,24 @@
             "NASA SST Anomaly": nasaAnomLayer
         };
         L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
+
+        // NEW: Info Button Control (Below the layer button)
+        var InfoControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function (map) {
+                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                container.innerHTML = '<a href="#" title="NOAA ENSO Summary" style="font-size: 20px; text-align: center; font-family: serif; font-style: italic; text-decoration: none; display: block; width: 30px; height: 30px; line-height: 30px; background-color: white; color: #333;">i</a>';
+                
+                L.DomEvent.disableClickPropagation(container); // Prevent map click
+
+                container.onclick = function(e) {
+                    e.preventDefault();
+                    document.getElementById('enso-modal').style.display = 'flex';
+                }
+                return container;
+            }
+        });
+        map.addControl(new InfoControl());
 
         // 9. Embed Legends as Bottom-Left Controls
         var LegendControl = L.Control.extend({
