@@ -121,8 +121,6 @@
         .info-legend b { font-size: 14px; margin-bottom: 5px; display: block; }
 
         .radar-legend { width: 230px; }
-        
-        /* Revised SSTA Legend Width */
         .ssta-legend { width: 320px; } 
 
         .color-bar {
@@ -224,9 +222,8 @@
     </div>
 
     <div id="leg-ssta" class="info-legend ssta-legend">
-        <div style="font-weight: bold; font-size: 14px; margin-bottom: 3px; color: #111;">Sea Surface Temperature Anomalies (L4, MUR)</div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <span style="font-size: 11px; color: #555; font-style: italic;">Multi-mission / GHRSST</span>
+        <div style="font-weight: bold; font-size: 14px; margin-bottom: 3px; color: #111;">Sea Surface Temperature Anomalies</div>
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px;">
             <span style="background-color: #e0e0e0; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; color: #333;">v4.1 STD</span>
         </div>
 
@@ -237,14 +234,14 @@
             </div>
         </div>
         
-        <div class="color-bar" id="ssta-gradient-bar" style="background: linear-gradient(to right, rgb(49,54,149), rgb(69,117,180), rgb(116,173,209), rgb(171,217,233), rgb(255,255,255), rgb(254,224,144), rgb(253,174,97), rgb(244,109,67), rgb(215,48,39), rgb(165,0,38)); height: 16px;"></div>
+        <div class="color-bar" id="ssta-gradient-bar" style="background: linear-gradient(to right, rgb(102,0,204), rgb(0,85,255), rgb(0,255,255), rgb(153,255,153), rgb(230,230,230), rgb(255,255,153), rgb(255,255,0), rgb(255,153,0), rgb(255,0,0), rgb(204,0,102), rgb(102,0,0)); height: 16px;"></div>
         
         <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; font-weight: bold; color: #222;">
-            <span>&le; -3.0 °C</span>
+            <span>&lt; -3.0 °C</span>
             <span>&ge; 3.0 °C</span>
         </div>
         
-        <div style="font-size: 10px; color: #777; text-align: right; margin-top: 6px;">Updated: <span id="ssta-date-time" style="color:#d32f2f; font-weight:bold;">Loading...</span></div>
+        <div style="font-size: 10px; color: #777; text-align: right; margin-top: 6px;">Updated: <span id="ssta-date-time" style="color:#d32f2f; font-weight:bold;">Fetching latest...</span></div>
     </div>
 
     <div id="leg-countries" class="info-legend">
@@ -255,8 +252,7 @@
     <script>
         // Helper function to format date
         const formatDateTimeForLegend = (date) => {
-            const days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', ...Array.from({ length: 22 }, (_, i) => i + 10)];
-            const day = days[date.getDate() - 1] || date.getDate(); 
+            const day = date.getDate().toString().padStart(2, '0');
             const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
             const month = monthNames[date.getMonth()];
             const year = date.getFullYear();
@@ -333,20 +329,20 @@
         // 6. LAYER: NASA GIBS MUR SST Anomaly
         var sstDates = [];
         var today = new Date();
+        // Temporarily load an assumed date (2 days ago), will dynamically update shortly
         for (let i = 11; i >= 2; i--) { 
             let d = new Date(today);
             d.setDate(d.getDate() - i);
             sstDates.push(d);
         }
-        
         var currentSstIndex = sstDates.length - 1; 
+        
         var nasaSstUrlTemplate = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/{time}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
         
         function getSstUrl(date) {
             return nasaSstUrlTemplate.replace('{time}', date.toISOString().split('T')[0]);
         }
 
-        // CRITICAL: crossOrigin: true added to allow pixel extraction
         var nasaAnomLayer = L.tileLayer(getSstUrl(sstDates[currentSstIndex]), { 
             opacity: 0.75, 
             maxZoom: 7, 
@@ -354,7 +350,37 @@
             attribution: 'Data &copy; NASA GIBS' 
         });
 
-        document.getElementById('ssta-date-time').innerText = formatDateTimeForLegend(sstDates[currentSstIndex]);
+        // --- NEW FEATURE: DYNAMICALLY CHECK FOR LATEST AVAILABLE LAYER ---
+        async function checkLatestSST() {
+            // Check today, yesterday, and 2 days ago to see which is available
+            for (let offset = 0; offset <= 4; offset++) {
+                let testDate = new Date();
+                testDate.setDate(testDate.getDate() - offset);
+                // We check tile z=0, y=0, x=0 to see if the layer exists for this date
+                let testUrl = getSstUrl(testDate).replace('{z}/{y}/{x}', '0/0/0');
+                
+                try {
+                    let response = await fetch(testUrl, { method: 'HEAD', mode: 'cors' });
+                    if (response.ok) {
+                        // Found the latest available date! Rebuild our 10-day timeline ending here.
+                        sstDates = [];
+                        for (let i = 9 + offset; i >= offset; i--) { 
+                            let d = new Date();
+                            d.setDate(d.getDate() - i);
+                            sstDates.push(d);
+                        }
+                        currentSstIndex = sstDates.length - 1;
+                        updateSstFrame();
+                        break;
+                    }
+                } catch (e) {
+                    // Suppress cors/network errors during probing
+                }
+            }
+        }
+        // Run the background check immediately
+        checkLatestSST();
+        // -----------------------------------------------------------------
 
         // 7. LAYER: Free Country Boundary Lines
         var countryLayer = L.layerGroup();
@@ -526,23 +552,23 @@
         // NEW FEATURE: Map Mouse Hover -> Read Pixel -> Update Legend
         // -----------------------------------------------------------------
 
-        // Step 1: Precalculate an RGB color lookup table matching the exact NASA range (-3 to +3)
+        // Match the mathematically calculated color stops to the new visual gradient
         const sstColorStops = [
-            { temp: -3.0, r: 49, g: 54, b: 149 },
-            { temp: -2.0, r: 69, g: 117, b: 180 },
-            { temp: -1.0, r: 116, g: 173, b: 209 },
-            { temp: -0.5, r: 171, g: 217, b: 233 },
-            { temp: 0.0, r: 255, g: 255, b: 255 },
-            { temp: 0.5, r: 254, g: 224, b: 144 },
-            { temp: 1.0, r: 253, g: 174, b: 97 },
-            { temp: 1.5, r: 244, g: 109, b: 67 },
-            { temp: 2.0, r: 215, g: 48, b: 39 },
-            { temp: 3.0, r: 165, g: 0, b: 38 }
+            { temp: -3.0, r: 102, g: 0, b: 204 },
+            { temp: -2.4, r: 0, g: 85, b: 255 },
+            { temp: -1.8, r: 0, g: 255, b: 255 },
+            { temp: -1.2, r: 153, g: 255, b: 153 },
+            { temp: -0.6, r: 230, g: 230, b: 230 },
+            { temp: 0.0, r: 255, g: 255, b: 153 },
+            { temp: 0.6, r: 255, g: 255, b: 0 },
+            { temp: 1.2, r: 255, g: 153, b: 0 },
+            { temp: 1.8, r: 255, g: 0, b: 0 },
+            { temp: 2.4, r: 204, g: 0, b: 102 },
+            { temp: 3.0, r: 102, g: 0, b: 0 }
         ];
 
         var sstPalette = [];
         for (let i = 0; i <= 200; i++) { 
-            // Range is now -3.0 to +3.0 (Delta of 6.0)
             var t = -3.0 + (i / 200) * 6.0;
             var stop1 = sstColorStops[0], stop2 = sstColorStops[1];
             for(let j = 0; j < sstColorStops.length - 1; j++){
@@ -561,7 +587,6 @@
             });
         }
 
-        // Match hovered pixel RGB to closest temperature value
         function getTempFromColor(r, g, b) {
             var minDist = Infinity;
             var bestTemp = null;
@@ -573,19 +598,16 @@
                     bestTemp = c.temp;
                 }
             }
-            // If the color is far off our palette (e.g., boundaries, landmass artifacts), ignore it
             if (minDist > 45) return null; 
             return bestTemp;
         }
 
-        // Step 2: Track mouse movements over the map
         map.on('mousemove', function(e) {
             if (!map.hasLayer(nasaAnomLayer)) return;
 
             var foundTemp = null;
-            var tiles = nasaAnomLayer._tiles; // Access active Leaflet tiles
+            var tiles = nasaAnomLayer._tiles; 
             
-            // Loop through active tiles to find which one the cursor is over
             for (var key in tiles) {
                 var el = tiles[key].el;
                 var rect = el.getBoundingClientRect();
@@ -593,12 +615,10 @@
                 var cx = e.originalEvent.clientX;
                 var cy = e.originalEvent.clientY;
                 
-                // If cursor is within this tile's boundaries
                 if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
                     var x = cx - rect.left;
                     var y = cy - rect.top;
                     
-                    // Draw a 1x1 pixel to a hidden canvas to read its RGB color
                     var canvas = document.createElement('canvas');
                     canvas.width = 1;
                     canvas.height = 1;
@@ -607,25 +627,20 @@
                         ctx.drawImage(el, x, y, 1, 1, 0, 0, 1, 1);
                         var pixel = ctx.getImageData(0, 0, 1, 1).data;
                         
-                        // Ensure pixel is not fully transparent
                         if (pixel[3] > 0) { 
                             foundTemp = getTempFromColor(pixel[0], pixel[1], pixel[2]);
                         }
-                    } catch (err) {
-                        // Suppress CORS errors during initial tile fetch
-                    }
+                    } catch (err) {}
                     break;
                 }
             }
             updateLegendPointer(foundTemp);
         });
 
-        // Hide pointer when leaving the map entirely
         map.on('mouseout', function() {
             updateLegendPointer(null);
         });
 
-        // Step 3: Animate the Legend Pointer based on NASA logic
         function updateLegendPointer(temp) {
             var container = document.getElementById('ssta-pointer-container');
             var pointer = document.getElementById('ssta-pointer');
@@ -633,17 +648,11 @@
 
             if (temp !== null) {
                 container.style.display = 'block';
-                
-                // Clamp temp to -3.0 and +3.0 as per NASA specifications
                 var clampedTemp = Math.max(-3.0, Math.min(3.0, temp));
-                
-                // Convert Temp (-3 to +3) to Percentage (0% to 100%)
                 var percent = ((clampedTemp + 3.0) / 6.0) * 100;
                 percent = Math.max(0, Math.min(100, percent)); 
                 
                 pointer.style.left = percent + '%';
-                
-                // Exact Formatting: Output string matching "+2.5 °C" or "-1.2 °C"
                 pointerVal.innerText = (temp > 0 ? "+" : "") + temp.toFixed(1) + " °C";
             } else {
                 container.style.display = 'none';
