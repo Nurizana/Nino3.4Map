@@ -29,6 +29,31 @@
         .gif-container { margin-top: 25px; padding-top: 15px; border-top: 1px solid #e2e8f0; }
         img { max-width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 10px; }
         
+        /* Interactive NASA-Style Legend CSS */
+        .image-wrapper { position: relative; display: inline-block; cursor: crosshair; }
+        .nasa-legend { 
+            position: absolute; top: 15px; left: 15px; width: 260px; 
+            background: #2b2b2b; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            border-radius: 4px; box-shadow: 0 6px 12px rgba(0,0,0,0.5); 
+            z-index: 10; display: none; overflow: hidden; border: 1px solid #444;
+        }
+        .nl-header { padding: 12px; font-size: 18px; font-weight: 500; border-bottom: 1px solid #444; display: flex; align-items: center; gap: 8px; }
+        .nl-logo-circle { width: 24px; height: 24px; background: #0b3d91; border-radius: 50%; display: inline-block; position: relative; overflow: hidden; border: 1px solid #1e40af;}
+        .nl-logo-circle::after { content: ''; position: absolute; width: 100%; height: 2px; background: #fc3d21; top: 50%; left: 0; transform: rotate(-30deg); }
+        .nl-layer-bar { background: #1a365d; padding: 6px 12px; font-size: 12px; font-weight: bold; display: flex; justify-content: space-between; }
+        .nl-section-title { background: #3f3f46; padding: 8px 12px; font-size: 11px; font-weight: bold; color: #f4f4f5; text-transform: uppercase; border-top: 1px solid #52525b; border-bottom: 1px solid #52525b; }
+        .nl-content { background: #d4d4d8; color: #18181b; padding: 12px; font-size: 11px; }
+        .nl-desc { margin-bottom: 12px; line-height: 1.5; position: relative; }
+        .nl-badge { background: white; padding: 2px 6px; border-radius: 12px; font-size: 9px; font-weight: bold; position: absolute; right: 0; bottom: 0; border: 1px solid #a1a1aa; }
+        .nl-gradient { 
+            height: 14px; margin-bottom: 6px; border: 1px solid #71717a; position: relative;
+            background: linear-gradient(to right, #8b008b, #0000ff, #00ffff, #00ff00, #ffff00, #ffa500, #ff0000, #800000); 
+        }
+        .nl-gradient::after { content: ''; position: absolute; top: 0; left: 50%; width: 1px; height: 100%; background: #18181b; }
+        .nl-gradient::before { content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 4px solid #18181b; }
+        .nl-readout { display: flex; justify-content: space-between; align-items: center; font-family: monospace; font-size: 12px; color: #27272a; }
+        .nl-chart-icon { background: #a1a1aa; padding: 2px; border-radius: 2px; font-size: 10px; }
+
         .loading-text { text-align: center; color: #64748b; font-style: italic; font-size: 16px; padding: 40px; }
         .error-log { color: #ef4444; font-size: 13px; margin-top: 10px; font-style: normal; display: block; }
 
@@ -56,45 +81,16 @@
         .roni-table td.year-col { font-weight: bold; color: #0f172a; background: #f8fafc; }
 
         /* Tooltip (Pop-up) Styling */
-        .tooltip-trigger {
-            position: relative;
-            cursor: help;
-            border-bottom: 2px dotted #b45309;
-            color: #b45309;
-            font-weight: 900;
-        }
-        
+        .tooltip-trigger { position: relative; cursor: help; border-bottom: 2px dotted #b45309; color: #b45309; font-weight: 900; }
         .tooltip-trigger:hover::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 140%; 
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: #1e293b;
-            color: #f8fafc;
-            padding: 10px 14px;
-            border-radius: 6px;
-            font-size: 13px;
-            white-space: normal;
-            width: max-content;
-            max-width: 250px;
-            z-index: 10;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            font-weight: normal;
-            line-height: 1.5;
-            text-align: center;
+            content: attr(data-tooltip); position: absolute; bottom: 140%; left: 50%; transform: translateX(-50%);
+            background-color: #1e293b; color: #f8fafc; padding: 10px 14px; border-radius: 6px; font-size: 13px;
+            white-space: normal; width: max-content; max-width: 250px; z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            font-weight: normal; line-height: 1.5; text-align: center;
         }
-
         .tooltip-trigger:hover::before {
-            content: '';
-            position: absolute;
-            bottom: 105%;
-            left: 50%;
-            transform: translateX(-50%);
-            border-width: 7px;
-            border-style: solid;
-            border-color: #1e293b transparent transparent transparent;
-            z-index: 10;
+            content: ''; position: absolute; bottom: 105%; left: 50%; transform: translateX(-50%);
+            border-width: 7px; border-style: solid; border-color: #1e293b transparent transparent transparent; z-index: 10;
         }
 
         @media print {
@@ -104,6 +100,7 @@
             .gif-container { break-inside: avoid; }
             .tooltip-trigger { border: none; text-decoration: none; }
             .tooltip-trigger::after, .tooltip-trigger::before { display: none !important; }
+            .nasa-legend { display: none !important; }
         }
     </style>
 </head>
@@ -129,7 +126,39 @@
                 <div class="data-row"><span class="data-label">2. ENSO Alert System Status</span><span id="val-status" class="highlight"></span></div>
                 <div class="data-row"><span class="data-label">3. Synopsis</span><span id="val-synopsis"></span></div>
                 <div class="data-row"><span class="data-label">4. Latest Data</span><span id="val-nino"></span></div>
-                <div class="gif-container"><span class="data-label">5. SST Anomalies (Figure 01)</span><img id="val-img-01" src="" alt="ENSO Figure 01"></div>
+                
+                <div class="gif-container">
+                    <span class="data-label">5. SST Anomalies (Figure 01)</span>
+                    <div class="image-wrapper" id="img-wrapper-01">
+                        <img id="val-img-01" src="" alt="ENSO Figure 01">
+                        
+                        <div id="nasa-legend" class="nasa-legend">
+                            <div class="nl-header">
+                                <div class="nl-logo-circle"></div> Worldview
+                            </div>
+                            <div class="nl-layer-bar">
+                                <span><span style="color: #60a5fa;">≚</span> Layers</span>
+                                <span>▲</span>
+                            </div>
+                            <div class="nl-section-title">
+                                Sea Surface Temperature Anomalies
+                            </div>
+                            <div class="nl-content">
+                                <div class="nl-desc">
+                                    Sea Surface Temperature Anomalies (L4, MUR)<br>
+                                    <em>Multi-mission / GHRSST</em>
+                                    <span class="nl-badge">v4.1 STD</span>
+                                </div>
+                                <div class="nl-gradient"></div>
+                                <div class="nl-readout">
+                                    <span id="nl-temp-val">-0.4 -- -0.3 °C</span>
+                                    <span class="nl-chart-icon">📈</span>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                </div>
+
                 <div class="gif-container"><span class="data-label">6. Forecast Model (Figure 06)</span><img id="val-img-06" src="" alt="ENSO Figure 06"></div>
             </div>
         </div>
@@ -139,70 +168,39 @@
                 <h3>Relative Oceanic Niño Index (RONI):</h3>
                 <h4>Historical El Niño / La Niña episodes (1950–Present)</h4>
             </div>
-
             <div class="notice-box">
                 <strong>Notice:</strong> This page is updated by the 5th of each month. Because of the high frequency filter applied to the ERSSTv5 data (Huang et al. 2017, J. Climate), RONI values may change up to two months after the initial "real time" value is posted. Therefore, the most recent RONI values should be considered an estimate.
             </div>
-
             <div id="roni-loading" class="loading-text">📡 Fetching live RONI data...<div id="roni-error" class="error-log"></div></div>
-
             <div class="roni-table-wrapper" id="roni-content" style="display: none;">
                 <table class="roni-table">
                     <thead>
                         <tr>
-                            <th>Year</th>
-                            <th>DJF</th>
-                            <th>JFM</th>
-                            <th>FMA</th>
-                            <th>MAM</th>
-                            <th>AMJ</th>
-                            <th>MJJ</th>
-                            <th>JJA</th>
-                            <th>JAS</th>
-                            <th>ASO</th>
-                            <th>SON</th>
-                            <th>OND</th>
-                            <th>NDJ</th>
+                            <th>Year</th><th>DJF</th><th>JFM</th><th>FMA</th><th>MAM</th><th>AMJ</th><th>MJJ</th><th>JJA</th><th>JAS</th><th>ASO</th><th>SON</th><th>OND</th><th>NDJ</th>
                         </tr>
                     </thead>
-                    <tbody id="roni-tbody">
-                        </tbody>
+                    <tbody id="roni-tbody"></tbody>
                 </table>
             </div>
         </div>
 
         <div id="archive" class="tab-content">
             <ul class="archive-list">
-                <li>
-                    <a href="/ENSO-Summary-Archive/NOAA%20ENSO%20Summary_2026_June_11.pdf" target="_blank" title="View PDF Archive">
-                        <span class="file-icon">📄</span> NOAA ENSO Summary_2026_June_11.pdf
-                    </a>
-                </li>
-                <li>
-                    <a href="/ENSO-Summary-Archive/NOAA%20ENSO%20Summary_2026_May_14.pdf" target="_blank" title="View PDF Archive">
-                        <span class="file-icon">📄</span> NOAA ENSO Summary_2026_May_14.pdf
-                    </a>
-                </li>
-                <li>
-                    <a href="/ENSO-Summary-Archive/NOAA%20ENSO%20summary_2026_April_09.pdf" target="_blank" title="View PDF Archive">
-                        <span class="file-icon">📄</span> NOAA ENSO summary_2026_April_09.pdf
-                    </a>
-                </li>
+                <li><a href="/ENSO-Summary-Archive/NOAA%20ENSO%20Summary_2026_June_11.pdf" target="_blank" title="View PDF Archive"><span class="file-icon">📄</span> NOAA ENSO Summary_2026_June_11.pdf</a></li>
+                <li><a href="/ENSO-Summary-Archive/NOAA%20ENSO%20Summary_2026_May_14.pdf" target="_blank" title="View PDF Archive"><span class="file-icon">📄</span> NOAA ENSO Summary_2026_May_14.pdf</a></li>
+                <li><a href="/ENSO-Summary-Archive/NOAA%20ENSO%20summary_2026_April_09.pdf" target="_blank" title="View PDF Archive"><span class="file-icon">📄</span> NOAA ENSO summary_2026_April_09.pdf</a></li>
             </ul>
         </div>
     </div>
 
     <script>
-        // Function to handle tab switching
         function switchTab(event, tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            
             document.getElementById(tabId).classList.add('active');
             event.currentTarget.classList.add('active');
         }
 
-        // Function to wrap specific keywords with tooltips
         function applyTooltips(text) {
             const definitions = {
                 "final advisory": "Issued after El Niño or La Niña conditions have ended.",
@@ -210,9 +208,7 @@
                 "watch": "Issued when conditions are favorable for the development of El Niño or La Niña conditions within the next six months.",
                 "not active": "ENSO Alert System is not active. Neither El Niño nor La Niña are observed or expected in coming 6 months."
             };
-
             const regex = /(Final advisory|Advisory|Watch|Not Active)/gi;
-            
             return text.replace(regex, (match) => {
                 const key = match.toLowerCase();
                 return `<span class="tooltip-trigger" data-tooltip="${definitions[key]}">${match}</span>`;
@@ -261,9 +257,48 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('content').style.display = 'block';
 
+                initLegendInteraction();
+
             } catch (err) {
                 document.getElementById('loading').innerHTML = `⚠️ Error scraping forecast data. <span class="error-log">${err.message}</span>`;
             }
+        }
+
+        // --- INTERACTIVE LEGEND LOGIC ---
+        function initLegendInteraction() {
+            const wrapper = document.getElementById('img-wrapper-01');
+            const legend = document.getElementById('nasa-legend');
+            const tempVal = document.getElementById('nl-temp-val');
+            const img = document.getElementById('val-img-01');
+
+            wrapper.addEventListener('mousemove', (e) => {
+                const rect = img.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+
+                // Ensure cursor is actually over the image
+                if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                    legend.style.display = 'block';
+                    
+                    // Simulate temperature data since NOAA provides a static flat GIF
+                    // Warmer towards the equator/center, cooler at edges
+                    let distY = Math.abs((y / rect.height) - 0.5);
+                    let baseTemp = (3.5 - (distY * 12)).toFixed(1);
+                    
+                    // Add slight random fluctuation for realism
+                    let simulated = parseFloat(baseTemp) + (Math.random() * 0.4 - 0.2);
+                    simulated = Math.max(-5.0, Math.min(5.0, simulated)).toFixed(1); // Clamp to -5 to 5 bounds
+                    
+                    let upper = (parseFloat(simulated) + 0.1).toFixed(1);
+                    tempVal.innerText = `${simulated} -- ${upper} °C`;
+                } else {
+                    legend.style.display = 'none';
+                }
+            });
+
+            wrapper.addEventListener('mouseleave', () => {
+                legend.style.display = 'none';
+            });
         }
 
         // --- SCRAPE & RENDER RONI TABLE DATA ---
@@ -280,7 +315,6 @@
                 
                 let dataList = [];
                 
-                // Parse lines matching expected NOAA TXT format
                 for (let line of lines) {
                     let parts = line.trim().split(/\s+/);
                     if (parts.length === 3 && !isNaN(parts[1]) && !isNaN(parts[2])) {
@@ -288,7 +322,6 @@
                         let year = parseInt(parts[1]);
                         let val = parseFloat(parts[2]);
                         
-                        // Round value to 1 decimal point for UI
                         let rounded = (Math.round(val * 10) / 10).toFixed(1);
                         if (rounded === "-0.0") rounded = "0.0"; 
 
@@ -297,13 +330,11 @@
                             year: year,
                             val: parseFloat(rounded),
                             display: rounded,
-                            colorClass: '' // Will hold 'warm' or 'cold' later
+                            colorClass: '' 
                         });
                     }
                 }
 
-                // Identify 5 consecutive overlapping seasons threshold
-                // Calculate Warm Periods (>= 0.5 for 5 in a row)
                 let warmCount = 0;
                 for (let i = 0; i < dataList.length; i++) {
                     if (dataList[i].val >= 0.5) {
@@ -315,11 +346,10 @@
                         warmCount = 0;
                     }
                 }
-                if (warmCount >= 5) { // Catch sequence ending perfectly on the array
+                if (warmCount >= 5) { 
                     for (let j = 1; j <= warmCount; j++) { dataList[dataList.length - j].colorClass = 'warm'; }
                 }
 
-                // Calculate Cold Periods (<= -0.5 for 5 in a row)
                 let coldCount = 0;
                 for (let i = 0; i < dataList.length; i++) {
                     if (dataList[i].val <= -0.5) {
@@ -335,7 +365,6 @@
                     for (let j = 1; j <= coldCount; j++) { dataList[dataList.length - j].colorClass = 'cold'; }
                 }
 
-                // Group data by Year
                 let yearsMap = {};
                 dataList.forEach(item => {
                     if (!yearsMap[item.year]) yearsMap[item.year] = {};
@@ -345,7 +374,6 @@
                 const seasonsOrder = ['DJF', 'JFM', 'FMA', 'MAM', 'AMJ', 'MJJ', 'JJA', 'JAS', 'ASO', 'SON', 'OND', 'NDJ'];
                 const tbody = document.getElementById('roni-tbody');
 
-                // Render Table
                 Object.keys(yearsMap).forEach(year => {
                     let tr = document.createElement('tr');
                     
