@@ -329,8 +329,9 @@
         // 6. LAYER: NASA GIBS MUR SST Anomaly
         var sstDates = [];
         var today = new Date();
-        // Temporarily load an assumed date (2 days ago), will dynamically update shortly
-        for (let i = 11; i >= 2; i--) { 
+        
+        // REVISED: Assume a 15-day timeline as the baseline (ends 2 days ago to account for processing latency)
+        for (let i = 16; i >= 2; i--) { 
             let d = new Date(today);
             d.setDate(d.getDate() - i);
             sstDates.push(d);
@@ -352,19 +353,20 @@
 
         // --- NEW FEATURE: DYNAMICALLY CHECK FOR LATEST AVAILABLE LAYER ---
         async function checkLatestSST() {
-            // Check today, yesterday, and 2 days ago to see which is available
-            for (let offset = 0; offset <= 4; offset++) {
+            // REVISED: Expanded offset up to 7 days due to variable NASA processing latency
+            for (let offset = 0; offset <= 7; offset++) {
                 let testDate = new Date();
                 testDate.setDate(testDate.getDate() - offset);
                 // We check tile z=0, y=0, x=0 to see if the layer exists for this date
                 let testUrl = getSstUrl(testDate).replace('{z}/{y}/{x}', '0/0/0');
                 
                 try {
-                    let response = await fetch(testUrl, { method: 'HEAD', mode: 'cors' });
+                    // Added a cache-buster query string so the browser doesn't return a false negative from yesterday's failed check
+                    let response = await fetch(testUrl + "?t=" + new Date().getTime(), { method: 'HEAD', mode: 'cors' });
                     if (response.ok) {
-                        // Found the latest available date! Rebuild our 10-day timeline ending here.
+                        // Found the latest available date! Rebuild our 15-DAY timeline ending here.
                         sstDates = [];
-                        for (let i = 9 + offset; i >= offset; i--) { 
+                        for (let i = 14 + offset; i >= offset; i--) { 
                             let d = new Date();
                             d.setDate(d.getDate() - i);
                             sstDates.push(d);
