@@ -22,7 +22,7 @@
             padding: 10px 25px;
             border: 2px solid #333;
             border-radius: 8px;
-            font-size: 20px;
+            font-size: 19px;
             font-weight: bold;
             color: #111;
             box-shadow: 0 4px 8px rgba(0,0,0,0.3);
@@ -31,10 +31,7 @@
         }
 
         /* --- Resize Layer & Info Icons --- */
-        .leaflet-control-layers-toggle {
-            width: 36px !important;
-            height: 36px !important;
-        }
+        .leaflet-control-layers-toggle { width: 36px !important; height: 36px !important; }
         
         .custom-control-btn {
             width: 36px !important;
@@ -56,7 +53,7 @@
             color: #000;
         }
 
-        /* --- SST Anomaly Animation Panel Styling --- */
+        /* --- Animation Panel Styling --- */
         .anim-panel {
             background-color: rgba(255, 255, 255, 0.95) !important;
             padding: 10px 12px;
@@ -101,9 +98,7 @@
             color: #333;
             transition: background-color 0.2s;
         }
-        .anim-btn:hover {
-            background-color: #e0e0e0;
-        }
+        .anim-btn:hover { background-color: #e0e0e0; }
 
         /* General Legend Styling */
         .info-legend {
@@ -122,6 +117,7 @@
 
         .radar-legend { width: 230px; }
         .ssta-legend { width: 320px; } 
+        .lst-legend { width: 320px; }
 
         .color-bar {
             width: 100%;
@@ -183,13 +179,12 @@
             color: #444;
             line-height: 1;
         }
-
         .modal-close:hover { color: #000; }
     </style>
 </head>
 <body>
 
-    <div id="map-title">Pemantauan Anomali Suhu Permukaan Laut dan Nino 3.4</div>
+    <div id="map-title">Pemantauan Suhu Daratan, Anomali SST & Nino 3.4</div>
 
     <div id="map"></div>
 
@@ -219,6 +214,23 @@
         <div class="color-labels">
             <span>0.1</span><span>1</span><span>5</span><span>10</span><span>25</span><span>50</span><span>100+ mm/h</span>
         </div>
+    </div>
+
+    <div id="leg-lst" class="info-legend lst-legend">
+        <div style="font-weight: bold; font-size: 14px; margin-bottom: 3px; color: #111;">Land Surface Temperature (Day)</div>
+        <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px;">
+            <span style="background-color: #e0e0e0; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; color: #333;">MODIS Terra °C</span>
+        </div>
+
+        <div class="color-bar" id="lst-gradient-bar" style="background: linear-gradient(to right, #000080, #0000FF, #00FFFF, #00FF00, #FFFF00, #FF8000, #FF0000, #800000); height: 16px;"></div>
+        
+        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; font-weight: bold; color: #222;">
+            <span>&le; -25 °C</span>
+            <span>10 °C</span>
+            <span>&ge; 45 °C</span>
+        </div>
+        
+        <div style="font-size: 10px; color: #777; text-align: right; margin-top: 6px;">Updated: <span id="lst-date-time" style="color:#d32f2f; font-weight:bold;">Fetching latest...</span></div>
     </div>
 
     <div id="leg-ssta" class="info-legend ssta-legend">
@@ -326,63 +338,57 @@
                 document.getElementById('time-display').innerText = "Data temporarily unavailable";
             });
 
-        // 6. LAYER: NASA GIBS MUR SST Anomaly
-        var sstDates = [];
+        // 6. LAYER: NASA GIBS Data (SST Anomaly & Land Temperature)
+        var dataDates = [];
         var today = new Date();
         
-        // REVISED: Assume a 15-day timeline as the baseline (ends 2 days ago to account for processing latency)
+        // Build timeline
         for (let i = 16; i >= 2; i--) { 
             let d = new Date(today);
             d.setDate(d.getDate() - i);
-            sstDates.push(d);
+            dataDates.push(d);
         }
-        var currentSstIndex = sstDates.length - 1; 
+        var currentIndex = dataDates.length - 1; 
         
         var nasaSstUrlTemplate = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/{time}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
+        var nasaLstUrlTemplate = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_Land_Surface_Temp_Day/default/{time}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
         
-        function getSstUrl(date) {
-            return nasaSstUrlTemplate.replace('{time}', date.toISOString().split('T')[0]);
-        }
+        function getSstUrl(date) { return nasaSstUrlTemplate.replace('{time}', date.toISOString().split('T')[0]); }
+        function getLstUrl(date) { return nasaLstUrlTemplate.replace('{time}', date.toISOString().split('T')[0]); }
 
-        var nasaAnomLayer = L.tileLayer(getSstUrl(sstDates[currentSstIndex]), { 
-            opacity: 0.75, 
-            maxZoom: 7, 
-            crossOrigin: true, 
-            attribution: 'Data &copy; NASA GIBS' 
+        var nasaAnomLayer = L.tileLayer(getSstUrl(dataDates[currentIndex]), { 
+            opacity: 0.75, maxZoom: 7, crossOrigin: true, attribution: 'Data &copy; NASA GIBS' 
         });
 
-        // --- NEW FEATURE: DYNAMICALLY CHECK FOR LATEST AVAILABLE LAYER ---
-        async function checkLatestSST() {
-            // REVISED: Expanded offset up to 7 days due to variable NASA processing latency
+        // NEW LAYER implementation
+        var nasaLstLayer = L.tileLayer(getLstUrl(dataDates[currentIndex]), {
+            opacity: 0.65, maxZoom: 7, crossOrigin: true, attribution: 'Data &copy; NASA GIBS' 
+        });
+
+        // Dynamically Check for Latest Data (Applying to both map feeds)
+        async function checkLatestData() {
             for (let offset = 0; offset <= 7; offset++) {
                 let testDate = new Date();
                 testDate.setDate(testDate.getDate() - offset);
-                // We check tile z=0, y=0, x=0 to see if the layer exists for this date
                 let testUrl = getSstUrl(testDate).replace('{z}/{y}/{x}', '0/0/0');
                 
                 try {
-                    // Added a cache-buster query string so the browser doesn't return a false negative from yesterday's failed check
                     let response = await fetch(testUrl + "?t=" + new Date().getTime(), { method: 'HEAD', mode: 'cors' });
                     if (response.ok) {
-                        // Found the latest available date! Rebuild our 15-DAY timeline ending here.
-                        sstDates = [];
+                        dataDates = [];
                         for (let i = 14 + offset; i >= offset; i--) { 
                             let d = new Date();
                             d.setDate(d.getDate() - i);
-                            sstDates.push(d);
+                            dataDates.push(d);
                         }
-                        currentSstIndex = sstDates.length - 1;
-                        updateSstFrame();
+                        currentIndex = dataDates.length - 1;
+                        updateMapFrames();
                         break;
                     }
-                } catch (e) {
-                    // Suppress cors/network errors during probing
-                }
+                } catch (e) { }
             }
         }
-        // Run the background check immediately
-        checkLatestSST();
-        // -----------------------------------------------------------------
+        checkLatestData();
 
         // 7. LAYER: Free Country Boundary Lines
         var countryLayer = L.layerGroup();
@@ -408,7 +414,8 @@
             "5° Global Grid": gridLayer,
             "Country Boundaries": countryLayer,
             "Live Radar": radarGroup,
-            "NASA SST Anomaly": nasaAnomLayer
+            "NASA SST Anomaly": nasaAnomLayer,
+            "NASA Land Temperature": nasaLstLayer
         };
         L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
 
@@ -428,16 +435,25 @@
         });
         map.addControl(new InfoControl());
 
-        // 10. Animation Control Panel
+        // 10. Animation Control Panel (NOW CONTROLS BOTH LAYERS)
         var animationTimer = null;
         var isPlaying = false;
 
-        function updateSstFrame() {
-            var frameDate = sstDates[currentSstIndex];
-            nasaAnomLayer.setUrl(getSstUrl(frameDate));
-            
+        function updateMapFrames() {
+            var frameDate = dataDates[currentIndex];
             var dateStr = formatDateTimeForLegend(frameDate);
-            document.getElementById('ssta-date-time').innerText = dateStr;
+
+            // Update SST Anomaly
+            if (map.hasLayer(nasaAnomLayer)) {
+                nasaAnomLayer.setUrl(getSstUrl(frameDate));
+                document.getElementById('ssta-date-time').innerText = dateStr;
+            }
+
+            // Update Land Temperature
+            if (map.hasLayer(nasaLstLayer)) {
+                nasaLstLayer.setUrl(getLstUrl(frameDate));
+                document.getElementById('lst-date-time').innerText = dateStr;
+            }
             
             var panelDate = document.getElementById('anim-date-display');
             if (panelDate) panelDate.innerText = dateStr;
@@ -450,11 +466,11 @@
                 L.DomEvent.disableClickPropagation(container);
 
                 var header = L.DomUtil.create('div', 'anim-header', container);
-                header.innerText = 'SST Anomaly Animate';
+                header.innerText = 'Temperature Animate';
 
                 var dateDisplay = L.DomUtil.create('div', 'anim-date', container);
                 dateDisplay.id = 'anim-date-display';
-                dateDisplay.innerText = formatDateTimeForLegend(sstDates[currentSstIndex]);
+                dateDisplay.innerText = formatDateTimeForLegend(dataDates[currentIndex]);
 
                 var btnGroup = L.DomUtil.create('div', 'anim-btn-group', container);
 
@@ -470,7 +486,7 @@
                 btnNext.innerHTML = '⏭';
                 btnNext.title = 'Next Day';
 
-                window.stopSstAnimation = function() {
+                window.stopAnimation = function() {
                     clearInterval(animationTimer);
                     btnPlay.innerHTML = '▶';
                     isPlaying = false;
@@ -478,35 +494,35 @@
 
                 btnPrev.onclick = function(e) {
                     e.preventDefault();
-                    if (!map.hasLayer(nasaAnomLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' dari menu layer dahulu!");
-                    if (isPlaying) window.stopSstAnimation();
-                    currentSstIndex = (currentSstIndex - 1 + sstDates.length) % sstDates.length;
-                    updateSstFrame();
+                    if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' atau 'NASA Land Temperature' dahulu!");
+                    if (isPlaying) window.stopAnimation();
+                    currentIndex = (currentIndex - 1 + dataDates.length) % dataDates.length;
+                    updateMapFrames();
                 };
 
                 btnPlay.onclick = function(e) {
                     e.preventDefault();
-                    if (!map.hasLayer(nasaAnomLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' dari menu layer dahulu!");
+                    if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' atau 'NASA Land Temperature' dahulu!");
                     
                     if (isPlaying) {
-                        window.stopSstAnimation();
+                        window.stopAnimation();
                     } else {
                         btnPlay.innerHTML = '⏸';
                         isPlaying = true;
                         
                         animationTimer = setInterval(function() {
-                            currentSstIndex = (currentSstIndex + 1) % sstDates.length;
-                            updateSstFrame();
+                            currentIndex = (currentIndex + 1) % dataDates.length;
+                            updateMapFrames();
                         }, 1200); 
                     }
                 };
 
                 btnNext.onclick = function(e) {
                     e.preventDefault();
-                    if (!map.hasLayer(nasaAnomLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' dari menu layer dahulu!");
-                    if (isPlaying) window.stopSstAnimation();
-                    currentSstIndex = (currentSstIndex + 1) % sstDates.length;
-                    updateSstFrame();
+                    if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' atau 'NASA Land Temperature' dahulu!");
+                    if (isPlaying) window.stopAnimation();
+                    currentIndex = (currentIndex + 1) % dataDates.length;
+                    updateMapFrames();
                 };
 
                 return container;
@@ -521,6 +537,7 @@
             onAdd: function (map) { return L.DomUtil.get(this._id); }
         });
         
+        map.addControl(new LegendControl('leg-lst'));
         map.addControl(new LegendControl('leg-ssta'));
         map.addControl(new LegendControl('leg-radar'));
         map.addControl(new LegendControl('leg-grid'));
@@ -534,6 +551,7 @@
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'block';
             if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'block';
             if (event.name === "NASA SST Anomaly") document.getElementById('leg-ssta').style.display = 'block';
+            if (event.name === "NASA Land Temperature") document.getElementById('leg-lst').style.display = 'block';
             if (event.name === "Country Boundaries") document.getElementById('leg-countries').style.display = 'block';
         });
 
@@ -545,16 +563,21 @@
             
             if (event.name === "NASA SST Anomaly") {
                 document.getElementById('leg-ssta').style.display = 'none';
-                if (isPlaying) window.stopSstAnimation();
-                updateLegendPointer(null); // Clear pointer
+                updateLegendPointer(null); 
+            }
+            if (event.name === "NASA Land Temperature") {
+                document.getElementById('leg-lst').style.display = 'none';
+            }
+
+            // Stop animation if both timeline layers are hidden
+            if (event.name === "NASA SST Anomaly" || event.name === "NASA Land Temperature") {
+                if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer) && isPlaying) {
+                    window.stopAnimation();
+                }
             }
         });
 
-        // -----------------------------------------------------------------
-        // NEW FEATURE: Map Mouse Hover -> Read Pixel -> Update Legend
-        // -----------------------------------------------------------------
-
-        // Match the mathematically calculated color stops to the new visual gradient
+        // 12. Map Mouse Hover -> Read Pixel -> Update Legend (Applies only to SST Anomaly)
         const sstColorStops = [
             { temp: -3.0, r: 102, g: 0, b: 204 },
             { temp: -2.4, r: 0, g: 85, b: 255 },
@@ -605,7 +628,7 @@
         }
 
         map.on('mousemove', function(e) {
-            if (!map.hasLayer(nasaAnomLayer)) return;
+            if (!map.hasLayer(nasaAnomLayer)) return; // Hover strictly applies to SST 
 
             var foundTemp = null;
             var tiles = nasaAnomLayer._tiles; 
