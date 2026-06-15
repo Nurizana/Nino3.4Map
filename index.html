@@ -2,338 +2,382 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Global Map & Live Radar</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOAA ENSO Summary Archive</title>
     <style>
-        body { margin: 0; padding: 0; }
-        #map { width: 100vw; height: 100vh; }
-
-        /* General Legend Styling */
-        .info-legend {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 12px 18px;
-            border: 1.5px solid #666;
-            border-radius: 6px;
-            font-family: Arial, sans-serif;
-            font-size: 13px;
-            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-            display: none; 
-            margin-bottom: 12px !important; 
-            pointer-events: auto;
-        }
-
-        .info-legend b { font-size: 14px; margin-bottom: 5px; display: block; }
-
-        .radar-legend { width: 230px; }
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f8fafc; color: #0f172a; }
+        .card { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 900px; margin: auto; }
         
-        /* Adjusted width for SSTA to fit all the intervals */
-        .ssta-legend { width: 450px; }
-
-        .color-bar {
-            width: 100%;
-            height: 12px;
-            margin-top: 10px;
-            border: 1px solid #777;
-            border-radius: 2px;
-        }
-
-        .color-labels {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            margin-top: 3px;
-            font-weight: bold;
-        }
+        .header-container { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 20px; }
+        h2 { color: #1e40af; margin: 0; }
         
-        .color-labels-ssta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            margin-top: 12px;
-            font-weight: bold;
-        }
+        /* Tab Styling */
+        .tab-container { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; flex-wrap: wrap; }
+        .tab-btn { background: #e2e8f0; color: #334155; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; transition: all 0.2s; }
+        .tab-btn.active { background: #1e40af; color: white; }
+        .tab-btn:hover:not(.active) { background: #cbd5e1; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
 
-        .color-labels-ssta span {
-            display: inline-block;
-            transform: rotate(-45deg);
-            transform-origin: center;
-        }
+        /* Print button styling */
+        .print-btn { background: #1e40af; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; transition: background 0.2s; }
+        .print-btn:hover { background: #1e3a8a; }
 
-        /* Custom tooltip for the grid and country lines */
-        .grid-tooltip, .country-tooltip {
-            background-color: rgba(0, 0, 0, 0.85);
-            color: white;
-            border: 1.2px solid #ffff66;
-            border-radius: 3px;
-            font-weight: bold;
-            font-size: 12px;
-            padding: 3px 6px;
-        }
+        .data-row { margin-bottom: 18px; font-size: 15px; line-height: 1.6; }
+        .data-label { font-weight: bold; color: #334155; display: block; margin-bottom: 4px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;}
+        .highlight { background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-block; }
+        .gif-container { margin-top: 25px; padding-top: 15px; border-top: 1px solid #e2e8f0; }
+        img { max-width: 100%; border: 1px solid #cbd5e1; border-radius: 4px; margin-top: 10px; }
+        
+        .loading-text { text-align: center; color: #64748b; font-style: italic; font-size: 16px; padding: 40px; }
+        .error-log { color: #ef4444; font-size: 13px; margin-top: 10px; font-style: normal; display: block; }
 
-        /* Modal Styling */
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0;
-            top: 0;
-            width: 100vw;
-            height: 100vh;
-            background-color: rgba(0, 0, 0, 0.6);
-            justify-content: center;
-            align-items: center;
-        }
+        /* Archive File List Styling */
+        .archive-list { list-style: none; padding: 0; }
+        .archive-list li { background: #f1f5f9; padding: 12px 16px; margin-bottom: 8px; border-radius: 6px; border-left: 4px solid #1e40af; display: flex; align-items: center;}
+        .archive-list a { text-decoration: none; color: #1e40af; font-weight: bold; display: flex; align-items: center; gap: 10px; width: 100%; }
+        .archive-list a:hover { text-decoration: underline; }
+        .file-icon { font-size: 20px; }
 
-        .modal-content {
-            background-color: #fff;
-            width: 85%;
-            height: 85%;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
+        /* RONI Table Styling */
+        .roni-header { text-align: center; margin-bottom: 20px; }
+        .roni-header h3 { margin: 0 0 5px 0; font-size: 22px; }
+        .roni-header h4 { margin: 0; font-size: 16px; color: #475569; font-weight: normal; }
+        
+        .notice-box { background: #f8fafc; border: 1px solid #e2e8f0; border-left: 4px solid #b45309; padding: 12px 16px; font-size: 13px; line-height: 1.5; color: #334155; margin-bottom: 20px; border-radius: 4px; }
+        .notice-box strong { color: #0f172a; }
+        
+        .roni-table-wrapper { overflow-x: auto; }
+        .roni-table { width: 100%; border-collapse: collapse; font-size: 14px; text-align: center; }
+        .roni-table th, .roni-table td { border: 1px solid #cbd5e1; padding: 8px; }
+        .roni-table th { background: #f1f5f9; color: #0f172a; }
+        .roni-table td.warm { color: red; font-weight: bold; }
+        .roni-table td.cold { color: blue; font-weight: bold; }
+        .roni-table td.year-col { font-weight: bold; color: #0f172a; background: #f8fafc; }
+
+        /* Tooltip (Pop-up) Styling */
+        .tooltip-trigger {
             position: relative;
+            cursor: help;
+            border-bottom: 2px dotted #b45309;
+            color: #b45309;
+            font-weight: 900;
         }
-
-        .modal-close {
+        
+        .tooltip-trigger:hover::after {
+            content: attr(data-tooltip);
             position: absolute;
-            right: 15px;
-            top: 10px;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            color: #444;
-            line-height: 1;
+            bottom: 140%; 
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #1e293b;
+            color: #f8fafc;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            white-space: normal;
+            width: max-content;
+            max-width: 250px;
+            z-index: 10;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            font-weight: normal;
+            line-height: 1.5;
+            text-align: center;
         }
 
-        .modal-close:hover {
-            color: #000;
+        .tooltip-trigger:hover::before {
+            content: '';
+            position: absolute;
+            bottom: 105%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 7px;
+            border-style: solid;
+            border-color: #1e293b transparent transparent transparent;
+            z-index: 10;
+        }
+
+        @media print {
+            .print-btn, .tab-container { display: none; }
+            body { background: white; padding: 0; }
+            .card { box-shadow: none; border: none; padding: 0; max-width: 100%; }
+            .gif-container { break-inside: avoid; }
+            .tooltip-trigger { border: none; text-decoration: none; }
+            .tooltip-trigger::after, .tooltip-trigger::before { display: none !important; }
         }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
-
-    <div id="enso-modal" class="modal-overlay">
-        <div class="modal-content">
-            <span class="modal-close" onclick="document.getElementById('enso-modal').style.display='none'">&times;</span>
-            <iframe src="https://nurizana.github.io/index.html" style="width: 100%; height: 100%; border: none; margin-top: 15px;"></iframe>
+    <div class="card">
+        <div class="header-container">
+            <h2>NOAA ENSO Summary</h2>
+            <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
         </div>
-    </div>
 
-    <div id="leg-nino" class="info-legend">
-        <b>Niño 3.4 Region</b>
-        <span style="color: green; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span><br>
-        5°N to 5°S, 170°W to 120°W
-    </div>
-
-    <div id="leg-grid" class="info-legend">
-        <b>5° Global Grid</b>
-        <span style="color: #cccc00; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span><br>
-        Light Yellow Lines
-    </div>
-
-    <div id="leg-radar" class="info-legend radar-legend">
-        <b>Live Weather Radar</b>
-        Updated: <span id="time-display">Fetching live data...</span><br>
-        <div class="color-bar" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff);"></div>
-        <div class="color-labels">
-            <span>0.1</span><span>1</span><span>5</span><span>10</span><span>25</span><span>50</span><span>100+ mm/h</span>
+        <div class="tab-container">
+            <button class="tab-btn active" onclick="switchTab(event, 'latest')">Latest Forecast</button>
+            <button class="tab-btn" onclick="switchTab(event, 'roni')">RONI Table</button>
+            <button class="tab-btn" onclick="switchTab(event, 'archive')">Archive</button>
         </div>
-    </div>
-
-    <div id="leg-ssta" class="info-legend ssta-legend">
-        <b>Relative SST Anomalies (°C)</b>
-        Updated: <span id="ssta-date-time">Loading...</span><br>
-        <div class="color-bar" style="background: linear-gradient(to right, #000080, #0000ff, #ffffff, #ff0000, #800000);"></div>
-        <div class="color-labels-ssta">
-            <span>-5.0</span><span>-4.5</span><span>-4.0</span><span>-3.5</span><span>-3.0</span><span>-2.5</span><span>-2.0</span><span>-1.5</span><span>-1.0</span><span>-0.5</span><span>0.0</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>2.5</span><span>3.0</span><span>3.5</span><span>4.0</span><span>4.5</span><span>5.0</span>
+        
+        <div id="latest" class="tab-content active">
+            <div id="loading" class="loading-text">📡 Reading forecast from Climate Prediction Center...<div id="error-log" class="error-log"></div></div>
+            
+            <div id="content" style="display: none;">
+                <div class="data-row"><span class="data-label">1. Issued By</span><span id="val-issued"></span></div>
+                <div class="data-row"><span class="data-label">2. ENSO Alert System Status</span><span id="val-status" class="highlight"></span></div>
+                <div class="data-row"><span class="data-label">3. Synopsis</span><span id="val-synopsis"></span></div>
+                <div class="data-row"><span class="data-label">4. Latest Data</span><span id="val-nino"></span></div>
+                <div class="gif-container"><span class="data-label">5. SST Anomalies (Figure 01)</span><img id="val-img-01" src="" alt="ENSO Figure 01"></div>
+                <div class="gif-container"><span class="data-label">6. Forecast Model (Figure 06)</span><img id="val-img-06" src="" alt="ENSO Figure 06"></div>
+            </div>
         </div>
-    </div>
 
-    <div id="leg-countries" class="info-legend">
-        <b>Country Boundaries</b>
-        <span style="color: black; font-weight: bold; font-size: 1.1em; letter-spacing: 2px;">- - - - -</span>
+        <div id="roni" class="tab-content">
+            <div class="roni-header">
+                <h3>Relative Oceanic Niño Index (RONI):</h3>
+                <h4>Historical El Niño / La Niña episodes (1950–Present)</h4>
+            </div>
+
+            <div class="notice-box">
+                <strong>Notice:</strong> This page is updated by the 5th of each month. Because of the high frequency filter applied to the ERSSTv5 data (Huang et al. 2017, J. Climate), RONI values may change up to two months after the initial "real time" value is posted. Therefore, the most recent RONI values should be considered an estimate.
+            </div>
+
+            <div id="roni-loading" class="loading-text">📡 Fetching live RONI data...<div id="roni-error" class="error-log"></div></div>
+
+            <div class="roni-table-wrapper" id="roni-content" style="display: none;">
+                <table class="roni-table">
+                    <thead>
+                        <tr>
+                            <th>Year</th>
+                            <th>DJF</th>
+                            <th>JFM</th>
+                            <th>FMA</th>
+                            <th>MAM</th>
+                            <th>AMJ</th>
+                            <th>MJJ</th>
+                            <th>JJA</th>
+                            <th>JAS</th>
+                            <th>ASO</th>
+                            <th>SON</th>
+                            <th>OND</th>
+                            <th>NDJ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="roni-tbody">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="archive" class="tab-content">
+            <ul class="archive-list">
+                <li>
+                    <a href="/ENSO-Summary-Archive/NOAA%20ENSO%20Summary_2026_June_11.pdf" target="_blank" title="View PDF Archive">
+                        <span class="file-icon">📄</span> NOAA ENSO Summary_2026_June_11.pdf
+                    </a>
+                </li>
+                <li>
+                    <a href="/ENSO-Summary-Archive/NOAA%20ENSO%20Summary_2026_May_14.pdf" target="_blank" title="View PDF Archive">
+                        <span class="file-icon">📄</span> NOAA ENSO Summary_2026_May_14.pdf
+                    </a>
+                </li>
+                <li>
+                    <a href="/ENSO-Summary-Archive/NOAA%20ENSO%20summary_2026_April_09.pdf" target="_blank" title="View PDF Archive">
+                        <span class="file-icon">📄</span> NOAA ENSO summary_2026_April_09.pdf
+                    </a>
+                </li>
+            </ul>
+        </div>
     </div>
 
     <script>
-        // 1. Initialize Map
-        var map = L.map('map', { 
-            center: [4.21, 101.97], 
-            zoom: 5,
-            worldCopyJump: true 
-        });
+        // Function to handle tab switching
+        function switchTab(event, tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
 
-        // 2. Add Blue Ocean Basemaps
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri Ocean Base'
-        }).addTo(map);
+        // Function to wrap specific keywords with tooltips
+        function applyTooltips(text) {
+            const definitions = {
+                "final advisory": "Issued after El Niño or La Niña conditions have ended.",
+                "advisory": "Issued when El Niño or La Niña conditions are observed and expected to continue.",
+                "watch": "Issued when conditions are favorable for the development of El Niño or La Niña conditions within the next six months.",
+                "not active": "ENSO Alert System is not active. Neither El Niño nor La Niña are observed or expected in coming 6 months."
+            };
 
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri Labels'
-        }).addTo(map);
-
-        // 3. LAYER: Niño 3.4 Box
-        var boxStyle = { color: 'green', weight: 3, fill: false, dashArray: '8, 8' };
-        var ninoBox = L.layerGroup([
-            L.rectangle([[-5, -170], [5, -120]], boxStyle), 
-            L.rectangle([[-5, 190], [5, 240]], boxStyle)   
-        ]).addTo(map);
-
-        // 4. LAYER: 5-Degree Grid
-        var gridFeatures = [];
-        for (var lat = -85; lat <= 85; lat += 5) {
-            var latLabel = lat > 0 ? lat + "° N" : (lat < 0 ? Math.abs(lat) + "° S" : "Equator");
-            gridFeatures.push({
-                "type": "Feature",
-                "geometry": { "type": "LineString", "coordinates": [[-360, lat], [360, lat]] },
-                "properties": { "name": latLabel }
+            const regex = /(Final advisory|Advisory|Watch|Not Active)/gi;
+            
+            return text.replace(regex, (match) => {
+                const key = match.toLowerCase();
+                return `<span class="tooltip-trigger" data-tooltip="${definitions[key]}">${match}</span>`;
             });
         }
-        for (var lon = -360; lon <= 360; lon += 5) {
-            var trueLon = ((lon % 360) + 360) % 360; 
-            if (trueLon > 180) trueLon -= 360;
-            var lonLabel = trueLon > 0 ? trueLon + "° E" : (trueLon < 0 ? Math.abs(trueLon) + "° W" : "Prime Meridian");
-            if (trueLon === 180 || trueLon === -180) lonLabel = "180° Anti-Meridian";
 
-            gridFeatures.push({
-                "type": "Feature",
-                "geometry": { "type": "LineString", "coordinates": [[lon, -90], [lon, 90]] },
-                "properties": { "name": lonLabel }
-            });
-        }
-        var gridLayer = L.geoJSON(gridFeatures, {
-            style: { color: "#ffff66", weight: 1.5, opacity: 0.7, dashArray: "4, 4" },
-            onEachFeature: function (feature, layer) {
-                layer.bindTooltip(feature.properties.name, { sticky: true, className: 'grid-tooltip' });
-            }
-        });
-
-        // 5. LAYER: Live Radar Data
-        var radarGroup = L.layerGroup();
-        fetch('https://api.rainviewer.com/public/weather-maps.json')
-            .then(res => res.json())
-            .then(data => {
-                var pastData = data.radar.past[data.radar.past.length - 1];
-                var liveRadarUrl = data.host + pastData.path + '/256/{z}/{x}/{y}/2/1_1.png';
-                var realRadarLayer = L.tileLayer(liveRadarUrl, { opacity: 0.6, attribution: 'RainViewer' });
-                radarGroup.addLayer(realRadarLayer);
-                document.getElementById('time-display').innerText = new Date(pastData.time * 1000).toUTCString();
-            })
-            .catch(e => {
-                document.getElementById('time-display').innerText = "Data temporarily unavailable";
-            });
-
-        // 6. NEW LAYER: NASA GIBS MUR SST Anomaly
-        // Calculate date (Current Date - 2 Days) to account for processing lag
-        const dataDate = new Date();
-        dataDate.setDate(dataDate.getDate() - 2); 
-        const timeString = dataDate.toISOString().split('T')[0];
-        
-        const nasaAnomUrl = `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/${timeString}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png`;
-        
-        var nasaAnomLayer = L.tileLayer(nasaAnomUrl, { 
-            opacity: 0.75, 
-            maxZoom: 7, 
-            attribution: 'Data &copy; NASA GIBS' 
-        });
-
-        // Update the SSTA legend with calculated date
-        const formatDateTimeForLegend = (date) => {
-            const days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', ...Array.from({ length: 22 }, (_, i) => i + 10)];
-            const day = days[date.getDate()];
-            const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-            const month = monthNames[date.getMonth()];
-            const year = date.getFullYear();
-            return `${day} ${month} ${year}`;
-        };
-        document.getElementById('ssta-date-time').innerText = formatDateTimeForLegend(dataDate);
-
-
-        // 7. NEW LAYER: Free Country Boundary Lines (Natural Earth Data via public API)
-        var countryLayer = L.layerGroup();
-        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-            .then(res => res.json())
-            .then(data => {
-                var boundaryLayer = L.geoJSON(data, {
-                    style: { color: 'black', weight: 1, opacity: 0.8, fill: false },
-                    onEachFeature: function (feature, layer) {
-                        layer.bindTooltip(feature.properties.ADMIN || feature.properties.name, { sticky: true, className: 'country-tooltip' });
-                    }
-                });
-                countryLayer.addLayer(boundaryLayer);
-            })
-            .catch(e => {
-                console.error("Country lines data temporarily unavailable:", e);
-                document.getElementById('leg-countries').innerHTML += "<br><span style='color:red;'>Data Error</span>";
-            });
-
-
-        // 8. Layer Controls (Top Left)
-        var overlayMaps = {
-            "Niño 3.4 Region": ninoBox,
-            "5° Global Grid": gridLayer,
-            "Country Boundaries": countryLayer,
-            "Live Radar": radarGroup,
-            "NASA SST Anomaly": nasaAnomLayer
-        };
-        L.control.layers(null, overlayMaps, { position: 'topleft' }).addTo(map);
-
-        // NEW: Info Button Control (Below the layer button)
-        var InfoControl = L.Control.extend({
-            options: { position: 'topleft' },
-            onAdd: function (map) {
-                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                container.innerHTML = '<a href="#" title="NOAA ENSO Summary" style="font-size: 20px; text-align: center; font-family: serif; font-style: italic; text-decoration: none; display: block; width: 30px; height: 30px; line-height: 30px; background-color: white; color: #333;">i</a>';
+        // --- SCRAPE LATEST FORECAST DATA ---
+        async function scrapeNOAA() {
+            const targetUrl = 'https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml';
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+            
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error(`Network response was not OK`);
                 
-                L.DomEvent.disableClickPropagation(container); // Prevent map click
+                const htmlText = await response.text();
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlText, 'text/html');
+                let cleanText = doc.body.textContent || doc.body.innerText;
+                cleanText = cleanText.replace(/\s+/g, ' '); 
+                
+                const issuerMatch = cleanText.match(/issued by\s+(CLIMATE PREDICTION CENTER.*?NWS\s+\d{1,2}\s+[a-zA-Z]+\s+\d{4})/i);
+                const issuedBy = issuerMatch ? issuerMatch[1].trim() : "CLIMATE PREDICTION CENTER/NCEP/NWS";
+                
+                const statusMatch = cleanText.match(/ENSO Alert System Status:\s*(.*?)\s*Synopsis:/i);
+                const rawStatus = statusMatch ? statusMatch[1].trim() : "Data unavailable";
+                
+                const statusWithTooltips = applyTooltips(rawStatus);
+                
+                const synopsisMatch = cleanText.match(/Synopsis:\s*(.*?)(?:During the last month|In summary|The latest weekly)/i);
+                const synopsis = synopsisMatch ? synopsisMatch[1].trim() : "Data unavailable";
+                
+                const ninoMatch = cleanText.match(/(The latest weekly Niño-3\.4 index value was\s*[+-]?\d+\.\d+[^C]*C)/i);
+                const nino34 = ninoMatch ? ninoMatch[1].trim() : "Niño-3.4 value not found";
+                
+                const figure01Url = "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/figure01.gif";
+                const figure06Url = "https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/figure06.gif";
 
-                container.onclick = function(e) {
-                    e.preventDefault();
-                    document.getElementById('enso-modal').style.display = 'flex';
-                }
-                return container;
+                document.getElementById('val-issued').innerText = issuedBy;
+                document.getElementById('val-status').innerHTML = statusWithTooltips;
+                document.getElementById('val-synopsis').innerText = synopsis;
+                document.getElementById('val-nino').innerText = nino34;
+                document.getElementById('val-img-01').src = figure01Url;
+                document.getElementById('val-img-06').src = figure06Url;
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content').style.display = 'block';
+
+            } catch (err) {
+                document.getElementById('loading').innerHTML = `⚠️ Error scraping forecast data. <span class="error-log">${err.message}</span>`;
             }
-        });
-        map.addControl(new InfoControl());
+        }
 
-        // 9. Embed Legends as Bottom-Left Controls
-        var LegendControl = L.Control.extend({
-            options: { position: 'bottomleft' },
-            initialize: function(id) { this._id = id; },
-            onAdd: function (map) { return L.DomUtil.get(this._id); }
-        });
-        
-        map.addControl(new LegendControl('leg-ssta'));
-        map.addControl(new LegendControl('leg-radar'));
-        map.addControl(new LegendControl('leg-grid'));
-        map.addControl(new LegendControl('leg-countries'));
-        map.addControl(new LegendControl('leg-nino'));
+        // --- SCRAPE & RENDER RONI TABLE DATA ---
+        async function fetchRONIData() {
+            const targetUrl = 'https://www.cpc.ncep.noaa.gov/data/indices/RONI.ascii.txt';
+            const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
-        // Initialize state
-        document.getElementById('leg-nino').style.display = 'block';
+            try {
+                const response = await fetch(proxyUrl);
+                if (!response.ok) throw new Error('Network response for RONI data was not OK');
+                
+                const text = await response.text();
+                const lines = text.split('\n');
+                
+                let dataList = [];
+                
+                // Parse lines matching expected NOAA TXT format
+                for (let line of lines) {
+                    let parts = line.trim().split(/\s+/);
+                    if (parts.length === 3 && !isNaN(parts[1]) && !isNaN(parts[2])) {
+                        let season = parts[0];
+                        let year = parseInt(parts[1]);
+                        let val = parseFloat(parts[2]);
+                        
+                        // Round value to 1 decimal point for UI
+                        let rounded = (Math.round(val * 10) / 10).toFixed(1);
+                        if (rounded === "-0.0") rounded = "0.0"; 
 
-        // 10. Dynamic Legend Toggling
-        map.on('overlayadd', function(event) {
-            if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'block';
-            if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'block';
-            if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'block';
-            if (event.name === "NASA SST Anomaly") document.getElementById('leg-ssta').style.display = 'block';
-            if (event.name === "Country Boundaries") document.getElementById('leg-countries').style.display = 'block';
-        });
+                        dataList.push({
+                            season: season,
+                            year: year,
+                            val: parseFloat(rounded),
+                            display: rounded,
+                            colorClass: '' // Will hold 'warm' or 'cold' later
+                        });
+                    }
+                }
 
-        map.on('overlayremove', function(event) {
-            if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'none';
-            if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'none';
-            if (event.name === "Live Radar") document.getElementById('leg-radar').style.display = 'none';
-            if (event.name === "NASA SST Anomaly") document.getElementById('leg-ssta').style.display = 'none';
-            if (event.name === "Country Boundaries") document.getElementById('leg-countries').style.display = 'none';
-        });
+                // Identify 5 consecutive overlapping seasons threshold
+                // Calculate Warm Periods (>= 0.5 for 5 in a row)
+                let warmCount = 0;
+                for (let i = 0; i < dataList.length; i++) {
+                    if (dataList[i].val >= 0.5) {
+                        warmCount++;
+                    } else {
+                        if (warmCount >= 5) {
+                            for (let j = 1; j <= warmCount; j++) { dataList[i - j].colorClass = 'warm'; }
+                        }
+                        warmCount = 0;
+                    }
+                }
+                if (warmCount >= 5) { // Catch sequence ending perfectly on the array
+                    for (let j = 1; j <= warmCount; j++) { dataList[dataList.length - j].colorClass = 'warm'; }
+                }
+
+                // Calculate Cold Periods (<= -0.5 for 5 in a row)
+                let coldCount = 0;
+                for (let i = 0; i < dataList.length; i++) {
+                    if (dataList[i].val <= -0.5) {
+                        coldCount++;
+                    } else {
+                        if (coldCount >= 5) {
+                            for (let j = 1; j <= coldCount; j++) { dataList[i - j].colorClass = 'cold'; }
+                        }
+                        coldCount = 0;
+                    }
+                }
+                if (coldCount >= 5) { 
+                    for (let j = 1; j <= coldCount; j++) { dataList[dataList.length - j].colorClass = 'cold'; }
+                }
+
+                // Group data by Year
+                let yearsMap = {};
+                dataList.forEach(item => {
+                    if (!yearsMap[item.year]) yearsMap[item.year] = {};
+                    yearsMap[item.year][item.season] = item;
+                });
+
+                const seasonsOrder = ['DJF', 'JFM', 'FMA', 'MAM', 'AMJ', 'MJJ', 'JJA', 'JAS', 'ASO', 'SON', 'OND', 'NDJ'];
+                const tbody = document.getElementById('roni-tbody');
+
+                // Render Table
+                Object.keys(yearsMap).forEach(year => {
+                    let tr = document.createElement('tr');
+                    
+                    let tdYear = document.createElement('td');
+                    tdYear.className = 'year-col';
+                    tdYear.innerText = year;
+                    tr.appendChild(tdYear);
+
+                    seasonsOrder.forEach(s => {
+                        let td = document.createElement('td');
+                        let item = yearsMap[year][s];
+                        if (item) {
+                            td.innerText = item.display;
+                            if (item.colorClass) td.classList.add(item.colorClass);
+                        }
+                        tr.appendChild(td);
+                    });
+
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('roni-loading').style.display = 'none';
+                document.getElementById('roni-content').style.display = 'block';
+
+            } catch (err) {
+                document.getElementById('roni-loading').innerHTML = `⚠️ Error parsing RONI data. <span class="error-log">${err.message}</span>`;
+            }
+        }
+
+        // Initialize both fetch requests
+        scrapeNOAA();
+        fetchRONIData();
     </script>
 </body>
 </html>
