@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
         #map { width: 100vw; height: 100vh; cursor: crosshair; }
 
         /* --- Map Title Styling --- */
@@ -22,7 +22,6 @@
             padding: 10px 25px;
             border: 2px solid #333;
             border-radius: 8px;
-            font-family: Arial, sans-serif;
             font-size: 20px;
             font-weight: bold;
             color: #111;
@@ -70,14 +69,12 @@
             min-width: 160px;
         }
         .anim-header {
-            font-family: Arial, sans-serif;
             font-size: 13px;
             font-weight: bold;
             color: #333;
             text-align: center;
         }
         .anim-date {
-            font-family: Arial, sans-serif;
             font-size: 12px;
             color: #d32f2f;
             font-weight: bold;
@@ -114,7 +111,6 @@
             padding: 12px 18px;
             border: 1.5px solid #666;
             border-radius: 6px;
-            font-family: Arial, sans-serif;
             font-size: 13px;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
             display: none; 
@@ -125,11 +121,12 @@
         .info-legend b { font-size: 14px; margin-bottom: 5px; display: block; }
 
         .radar-legend { width: 230px; }
-        .ssta-legend { width: 450px; }
+        
+        /* Revised SSTA Legend Width */
+        .ssta-legend { width: 320px; } 
 
         .color-bar {
             width: 100%;
-            height: 12px;
             border: 1px solid #777;
             border-radius: 2px;
         }
@@ -140,20 +137,6 @@
             font-size: 11px;
             margin-top: 3px;
             font-weight: bold;
-        }
-        
-        .color-labels-ssta {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            margin-top: 12px;
-            font-weight: bold;
-        }
-
-        .color-labels-ssta span {
-            display: inline-block;
-            transform: rotate(-45deg);
-            transform-origin: center;
         }
 
         .grid-tooltip, .country-tooltip {
@@ -234,27 +217,34 @@
     <div id="leg-radar" class="info-legend radar-legend">
         <b>Live Weather Radar</b>
         Updated: <span id="time-display">Fetching live data...</span><br>
-        <div class="color-bar" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); margin-top: 10px;"></div>
+        <div class="color-bar" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); height: 12px; margin-top: 10px;"></div>
         <div class="color-labels">
             <span>0.1</span><span>1</span><span>5</span><span>10</span><span>25</span><span>50</span><span>100+ mm/h</span>
         </div>
     </div>
 
     <div id="leg-ssta" class="info-legend ssta-legend">
-        <b>Relative SST Anomalies (°C)</b>
-        Updated: <span id="ssta-date-time" style="color:#d32f2f; font-weight:bold;">Loading...</span><br>
-        
-        <div id="ssta-pointer-container" style="position: relative; width: 100%; height: 26px; display: none; margin-top: 5px;">
+        <div style="font-weight: bold; font-size: 14px; margin-bottom: 3px; color: #111;">Sea Surface Temperature Anomalies (L4, MUR)</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <span style="font-size: 11px; color: #555; font-style: italic;">Multi-mission / GHRSST</span>
+            <span style="background-color: #e0e0e0; padding: 2px 5px; border-radius: 4px; font-size: 10px; font-weight: bold; color: #333;">v4.1 STD</span>
+        </div>
+
+        <div id="ssta-pointer-container" style="position: relative; width: 100%; height: 22px; display: none;">
             <div id="ssta-pointer" style="position: absolute; left: 50%; top: 0; transform: translateX(-50%); text-align: center; transition: left 0.1s ease-out;">
-                <div id="ssta-pointer-val" style="font-size: 11px; font-weight: bold; background: white; border: 1.5px solid #333; padding: 1px 5px; border-radius: 4px; box-shadow: 1px 1px 3px rgba(0,0,0,0.3); white-space: nowrap;">0.0 °C</div>
-                <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #333; margin: 0 auto; margin-top: 1px;"></div>
+                <div id="ssta-pointer-val" style="font-size: 11px; font-weight: bold; background: white; border: 1.5px solid #333; padding: 1px 5px; border-radius: 4px; box-shadow: 1px 1px 3px rgba(0,0,0,0.3); white-space: nowrap; margin-bottom: 1px;">0.0 °C</div>
+                <div style="width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid #333; margin: 0 auto;"></div>
             </div>
         </div>
         
-        <div class="color-bar" id="ssta-gradient-bar" style="background: linear-gradient(to right, #000080, #0000ff, #ffffff, #ff0000, #800000); margin-top: 2px;"></div>
-        <div class="color-labels-ssta">
-            <span>-5.0</span><span>-4.5</span><span>-4.0</span><span>-3.5</span><span>-3.0</span><span>-2.5</span><span>-2.0</span><span>-1.5</span><span>-1.0</span><span>-0.5</span><span>0.0</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>2.5</span><span>3.0</span><span>3.5</span><span>4.0</span><span>4.5</span><span>5.0</span>
+        <div class="color-bar" id="ssta-gradient-bar" style="background: linear-gradient(to right, rgb(49,54,149), rgb(69,117,180), rgb(116,173,209), rgb(171,217,233), rgb(255,255,255), rgb(254,224,144), rgb(253,174,97), rgb(244,109,67), rgb(215,48,39), rgb(165,0,38)); height: 16px;"></div>
+        
+        <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 4px; font-weight: bold; color: #222;">
+            <span>&le; -3.0 °C</span>
+            <span>&ge; 3.0 °C</span>
         </div>
+        
+        <div style="font-size: 10px; color: #777; text-align: right; margin-top: 6px;">Updated: <span id="ssta-date-time" style="color:#d32f2f; font-weight:bold;">Loading...</span></div>
     </div>
 
     <div id="leg-countries" class="info-legend">
@@ -536,18 +526,24 @@
         // NEW FEATURE: Map Mouse Hover -> Read Pixel -> Update Legend
         // -----------------------------------------------------------------
 
-        // Step 1: Precalculate an RGB color lookup table matching the gradient
+        // Step 1: Precalculate an RGB color lookup table matching the exact NASA range (-3 to +3)
         const sstColorStops = [
-            { temp: -5.0, r: 0, g: 0, b: 128 },
-            { temp: -2.5, r: 0, g: 0, b: 255 },
+            { temp: -3.0, r: 49, g: 54, b: 149 },
+            { temp: -2.0, r: 69, g: 117, b: 180 },
+            { temp: -1.0, r: 116, g: 173, b: 209 },
+            { temp: -0.5, r: 171, g: 217, b: 233 },
             { temp: 0.0, r: 255, g: 255, b: 255 },
-            { temp: 2.5, r: 255, g: 0, b: 0 },
-            { temp: 5.0, r: 128, g: 0, b: 0 }
+            { temp: 0.5, r: 254, g: 224, b: 144 },
+            { temp: 1.0, r: 253, g: 174, b: 97 },
+            { temp: 1.5, r: 244, g: 109, b: 67 },
+            { temp: 2.0, r: 215, g: 48, b: 39 },
+            { temp: 3.0, r: 165, g: 0, b: 38 }
         ];
 
         var sstPalette = [];
         for (let i = 0; i <= 200; i++) { 
-            var t = -5.0 + (i / 200) * 10.0;
+            // Range is now -3.0 to +3.0 (Delta of 6.0)
+            var t = -3.0 + (i / 200) * 6.0;
             var stop1 = sstColorStops[0], stop2 = sstColorStops[1];
             for(let j = 0; j < sstColorStops.length - 1; j++){
                 if(t >= sstColorStops[j].temp && t <= sstColorStops[j+1].temp) {
@@ -577,7 +573,7 @@
                     bestTemp = c.temp;
                 }
             }
-            // If the color is far off our palette (e.g., boundaries, artifacts), ignore it
+            // If the color is far off our palette (e.g., boundaries, landmass artifacts), ignore it
             if (minDist > 45) return null; 
             return bestTemp;
         }
@@ -611,7 +607,7 @@
                         ctx.drawImage(el, x, y, 1, 1, 0, 0, 1, 1);
                         var pixel = ctx.getImageData(0, 0, 1, 1).data;
                         
-                        // Ensure pixel is not fully transparent (e.g., landmass)
+                        // Ensure pixel is not fully transparent
                         if (pixel[3] > 0) { 
                             foundTemp = getTempFromColor(pixel[0], pixel[1], pixel[2]);
                         }
@@ -629,26 +625,28 @@
             updateLegendPointer(null);
         });
 
-        // Step 3: Animate the Legend Pointer
+        // Step 3: Animate the Legend Pointer based on NASA logic
         function updateLegendPointer(temp) {
             var container = document.getElementById('ssta-pointer-container');
             var pointer = document.getElementById('ssta-pointer');
             var pointerVal = document.getElementById('ssta-pointer-val');
-            var gradientBar = document.getElementById('ssta-gradient-bar');
 
             if (temp !== null) {
                 container.style.display = 'block';
-                gradientBar.style.marginTop = '2px';
                 
-                // Convert Temp (-5 to +5) to Percentage (0% to 100%)
-                var percent = ((temp + 5.0) / 10.0) * 100;
+                // Clamp temp to -3.0 and +3.0 as per NASA specifications
+                var clampedTemp = Math.max(-3.0, Math.min(3.0, temp));
+                
+                // Convert Temp (-3 to +3) to Percentage (0% to 100%)
+                var percent = ((clampedTemp + 3.0) / 6.0) * 100;
                 percent = Math.max(0, Math.min(100, percent)); 
                 
                 pointer.style.left = percent + '%';
+                
+                // Exact Formatting: Output string matching "+2.5 °C" or "-1.2 °C"
                 pointerVal.innerText = (temp > 0 ? "+" : "") + temp.toFixed(1) + " °C";
             } else {
                 container.style.display = 'none';
-                gradientBar.style.marginTop = '15px'; // Adjust spacing when hidden
             }
         }
     </script>
