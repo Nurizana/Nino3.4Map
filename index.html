@@ -9,7 +9,7 @@
 
     <style>
         body { margin: 0; padding: 0; }
-        #map { width: 100vw; height: 100vh; }
+        #map { width: 100vw; height: 100vh; cursor: crosshair; }
 
         /* --- Map Title Styling --- */
         #map-title {
@@ -31,7 +31,7 @@
             text-align: center;
         }
 
-        /* --- Resize Layer & Info Icons (~20% Bigger) --- */
+        /* --- Resize Layer & Info Icons --- */
         .leaflet-control-layers-toggle {
             width: 36px !important;
             height: 36px !important;
@@ -57,7 +57,7 @@
             color: #000;
         }
 
-        /* --- NEW: SST Anomaly Animation Panel Styling --- */
+        /* --- SST Anomaly Animation Panel Styling --- */
         .anim-panel {
             background-color: rgba(255, 255, 255, 0.95) !important;
             padding: 10px 12px;
@@ -110,7 +110,7 @@
 
         /* General Legend Styling */
         .info-legend {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             padding: 12px 18px;
             border: 1.5px solid #666;
             border-radius: 6px;
@@ -130,7 +130,6 @@
         .color-bar {
             width: 100%;
             height: 12px;
-            margin-top: 10px;
             border: 1px solid #777;
             border-radius: 2px;
         }
@@ -235,7 +234,7 @@
     <div id="leg-radar" class="info-legend radar-legend">
         <b>Live Weather Radar</b>
         Updated: <span id="time-display">Fetching live data...</span><br>
-        <div class="color-bar" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff);"></div>
+        <div class="color-bar" style="background: linear-gradient(to right, #00ffff, #0000ff, #00ff00, #ffff00, #ff9900, #ff0000, #ff00ff); margin-top: 10px;"></div>
         <div class="color-labels">
             <span>0.1</span><span>1</span><span>5</span><span>10</span><span>25</span><span>50</span><span>100+ mm/h</span>
         </div>
@@ -244,7 +243,15 @@
     <div id="leg-ssta" class="info-legend ssta-legend">
         <b>Relative SST Anomalies (°C)</b>
         Updated: <span id="ssta-date-time" style="color:#d32f2f; font-weight:bold;">Loading...</span><br>
-        <div class="color-bar" style="background: linear-gradient(to right, #000080, #0000ff, #ffffff, #ff0000, #800000);"></div>
+        
+        <div id="ssta-pointer-container" style="position: relative; width: 100%; height: 26px; display: none; margin-top: 5px;">
+            <div id="ssta-pointer" style="position: absolute; left: 50%; top: 0; transform: translateX(-50%); text-align: center; transition: left 0.1s ease-out;">
+                <div id="ssta-pointer-val" style="font-size: 11px; font-weight: bold; background: white; border: 1.5px solid #333; padding: 1px 5px; border-radius: 4px; box-shadow: 1px 1px 3px rgba(0,0,0,0.3); white-space: nowrap;">0.0 °C</div>
+                <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #333; margin: 0 auto; margin-top: 1px;"></div>
+            </div>
+        </div>
+        
+        <div class="color-bar" id="ssta-gradient-bar" style="background: linear-gradient(to right, #000080, #0000ff, #ffffff, #ff0000, #800000); margin-top: 2px;"></div>
         <div class="color-labels-ssta">
             <span>-5.0</span><span>-4.5</span><span>-4.0</span><span>-3.5</span><span>-3.0</span><span>-2.5</span><span>-2.0</span><span>-1.5</span><span>-1.0</span><span>-0.5</span><span>0.0</span><span>0.5</span><span>1.0</span><span>1.5</span><span>2.0</span><span>2.5</span><span>3.0</span><span>3.5</span><span>4.0</span><span>4.5</span><span>5.0</span>
         </div>
@@ -259,7 +266,7 @@
         // Helper function to format date
         const formatDateTimeForLegend = (date) => {
             const days = ['01', '02', '03', '04', '05', '06', '07', '08', '09', ...Array.from({ length: 22 }, (_, i) => i + 10)];
-            const day = days[date.getDate()];
+            const day = days[date.getDate() - 1] || date.getDate(); 
             const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
             const month = monthNames[date.getMonth()];
             const year = date.getFullYear();
@@ -333,26 +340,27 @@
                 document.getElementById('time-display').innerText = "Data temporarily unavailable";
             });
 
-        // 6. LAYER: NASA GIBS MUR SST Anomaly (10-day Animation Setup)
+        // 6. LAYER: NASA GIBS MUR SST Anomaly
         var sstDates = [];
         var today = new Date();
-        // Array goes chronologically from oldest (index 0) to newest (index 9)
         for (let i = 11; i >= 2; i--) { 
             let d = new Date(today);
             d.setDate(d.getDate() - i);
             sstDates.push(d);
         }
         
-        var currentSstIndex = sstDates.length - 1; // Default to latest day
+        var currentSstIndex = sstDates.length - 1; 
         var nasaSstUrlTemplate = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies/default/{time}/GoogleMapsCompatible_Level7/{z}/{y}/{x}.png';
         
         function getSstUrl(date) {
             return nasaSstUrlTemplate.replace('{time}', date.toISOString().split('T')[0]);
         }
 
+        // CRITICAL: crossOrigin: true added to allow pixel extraction
         var nasaAnomLayer = L.tileLayer(getSstUrl(sstDates[currentSstIndex]), { 
             opacity: 0.75, 
             maxZoom: 7, 
+            crossOrigin: true, 
             attribution: 'Data &copy; NASA GIBS' 
         });
 
@@ -402,7 +410,7 @@
         });
         map.addControl(new InfoControl());
 
-        // 10. NEW: Advanced Animation Control Panel
+        // 10. Animation Control Panel
         var animationTimer = null;
         var isPlaying = false;
 
@@ -413,7 +421,6 @@
             var dateStr = formatDateTimeForLegend(frameDate);
             document.getElementById('ssta-date-time').innerText = dateStr;
             
-            // Also update date inside the control panel if it exists
             var panelDate = document.getElementById('anim-date-display');
             if (panelDate) panelDate.innerText = dateStr;
         }
@@ -451,7 +458,6 @@
                     isPlaying = false;
                 };
 
-                // Previous Day Action
                 btnPrev.onclick = function(e) {
                     e.preventDefault();
                     if (!map.hasLayer(nasaAnomLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' dari menu layer dahulu!");
@@ -460,7 +466,6 @@
                     updateSstFrame();
                 };
 
-                // Play/Pause Action
                 btnPlay.onclick = function(e) {
                     e.preventDefault();
                     if (!map.hasLayer(nasaAnomLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' dari menu layer dahulu!");
@@ -474,11 +479,10 @@
                         animationTimer = setInterval(function() {
                             currentSstIndex = (currentSstIndex + 1) % sstDates.length;
                             updateSstFrame();
-                        }, 1200); // 1.2 seconds per frame
+                        }, 1200); 
                     }
                 };
 
-                // Next Day Action
                 btnNext.onclick = function(e) {
                     e.preventDefault();
                     if (!map.hasLayer(nasaAnomLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' dari menu layer dahulu!");
@@ -492,7 +496,7 @@
         });
         map.addControl(new AnimationControl());
 
-        // 11. Embed Legends as Bottom-Left Controls
+        // 11. Embed Legends
         var LegendControl = L.Control.extend({
             options: { position: 'bottomleft' },
             initialize: function(id) { this._id = id; },
@@ -507,7 +511,6 @@
 
         document.getElementById('leg-nino').style.display = 'block';
 
-        // 12. Dynamic Legend Toggling
         map.on('overlayadd', function(event) {
             if (event.name === "Niño 3.4 Region") document.getElementById('leg-nino').style.display = 'block';
             if (event.name === "5° Global Grid") document.getElementById('leg-grid').style.display = 'block';
@@ -525,8 +528,129 @@
             if (event.name === "NASA SST Anomaly") {
                 document.getElementById('leg-ssta').style.display = 'none';
                 if (isPlaying) window.stopSstAnimation();
+                updateLegendPointer(null); // Clear pointer
             }
         });
+
+        // -----------------------------------------------------------------
+        // NEW FEATURE: Map Mouse Hover -> Read Pixel -> Update Legend
+        // -----------------------------------------------------------------
+
+        // Step 1: Precalculate an RGB color lookup table matching the gradient
+        const sstColorStops = [
+            { temp: -5.0, r: 0, g: 0, b: 128 },
+            { temp: -2.5, r: 0, g: 0, b: 255 },
+            { temp: 0.0, r: 255, g: 255, b: 255 },
+            { temp: 2.5, r: 255, g: 0, b: 0 },
+            { temp: 5.0, r: 128, g: 0, b: 0 }
+        ];
+
+        var sstPalette = [];
+        for (let i = 0; i <= 200; i++) { 
+            var t = -5.0 + (i / 200) * 10.0;
+            var stop1 = sstColorStops[0], stop2 = sstColorStops[1];
+            for(let j = 0; j < sstColorStops.length - 1; j++){
+                if(t >= sstColorStops[j].temp && t <= sstColorStops[j+1].temp) {
+                    stop1 = sstColorStops[j];
+                    stop2 = sstColorStops[j+1];
+                    break;
+                }
+            }
+            var pct = (t - stop1.temp) / (stop2.temp - stop1.temp);
+            sstPalette.push({
+                temp: t,
+                r: Math.round(stop1.r + (stop2.r - stop1.r) * pct),
+                g: Math.round(stop1.g + (stop2.g - stop1.g) * pct),
+                b: Math.round(stop1.b + (stop2.b - stop1.b) * pct)
+            });
+        }
+
+        // Match hovered pixel RGB to closest temperature value
+        function getTempFromColor(r, g, b) {
+            var minDist = Infinity;
+            var bestTemp = null;
+            for(var i=0; i<sstPalette.length; i++) {
+                var c = sstPalette[i];
+                var dist = Math.sqrt(Math.pow(c.r - r, 2) + Math.pow(c.g - g, 2) + Math.pow(c.b - b, 2));
+                if(dist < minDist) {
+                    minDist = dist;
+                    bestTemp = c.temp;
+                }
+            }
+            // If the color is far off our palette (e.g., boundaries, artifacts), ignore it
+            if (minDist > 45) return null; 
+            return bestTemp;
+        }
+
+        // Step 2: Track mouse movements over the map
+        map.on('mousemove', function(e) {
+            if (!map.hasLayer(nasaAnomLayer)) return;
+
+            var foundTemp = null;
+            var tiles = nasaAnomLayer._tiles; // Access active Leaflet tiles
+            
+            // Loop through active tiles to find which one the cursor is over
+            for (var key in tiles) {
+                var el = tiles[key].el;
+                var rect = el.getBoundingClientRect();
+                
+                var cx = e.originalEvent.clientX;
+                var cy = e.originalEvent.clientY;
+                
+                // If cursor is within this tile's boundaries
+                if (cx >= rect.left && cx <= rect.right && cy >= rect.top && cy <= rect.bottom) {
+                    var x = cx - rect.left;
+                    var y = cy - rect.top;
+                    
+                    // Draw a 1x1 pixel to a hidden canvas to read its RGB color
+                    var canvas = document.createElement('canvas');
+                    canvas.width = 1;
+                    canvas.height = 1;
+                    var ctx = canvas.getContext('2d', { willReadFrequently: true });
+                    try {
+                        ctx.drawImage(el, x, y, 1, 1, 0, 0, 1, 1);
+                        var pixel = ctx.getImageData(0, 0, 1, 1).data;
+                        
+                        // Ensure pixel is not fully transparent (e.g., landmass)
+                        if (pixel[3] > 0) { 
+                            foundTemp = getTempFromColor(pixel[0], pixel[1], pixel[2]);
+                        }
+                    } catch (err) {
+                        // Suppress CORS errors during initial tile fetch
+                    }
+                    break;
+                }
+            }
+            updateLegendPointer(foundTemp);
+        });
+
+        // Hide pointer when leaving the map entirely
+        map.on('mouseout', function() {
+            updateLegendPointer(null);
+        });
+
+        // Step 3: Animate the Legend Pointer
+        function updateLegendPointer(temp) {
+            var container = document.getElementById('ssta-pointer-container');
+            var pointer = document.getElementById('ssta-pointer');
+            var pointerVal = document.getElementById('ssta-pointer-val');
+            var gradientBar = document.getElementById('ssta-gradient-bar');
+
+            if (temp !== null) {
+                container.style.display = 'block';
+                gradientBar.style.marginTop = '2px';
+                
+                // Convert Temp (-5 to +5) to Percentage (0% to 100%)
+                var percent = ((temp + 5.0) / 10.0) * 100;
+                percent = Math.max(0, Math.min(100, percent)); 
+                
+                pointer.style.left = percent + '%';
+                pointerVal.innerText = (temp > 0 ? "+" : "") + temp.toFixed(1) + " °C";
+            } else {
+                container.style.display = 'none';
+                gradientBar.style.marginTop = '15px'; // Adjust spacing when hidden
+            }
+        }
     </script>
 </body>
 </html>
