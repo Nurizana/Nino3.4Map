@@ -262,7 +262,6 @@
     </div>
 
     <script>
-        // Helper function to format date
         const formatDateTimeForLegend = (date) => {
             const day = date.getDate().toString().padStart(2, '0');
             const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -338,11 +337,10 @@
                 document.getElementById('time-display').innerText = "Data temporarily unavailable";
             });
 
-        // 6. LAYER: NASA GIBS Data (SST Anomaly & Land Temperature)
+        // 6. LAYER: NASA GIBS Data
         var dataDates = [];
         var today = new Date();
         
-        // Build timeline
         for (let i = 16; i >= 2; i--) { 
             let d = new Date(today);
             d.setDate(d.getDate() - i);
@@ -356,16 +354,27 @@
         function getSstUrl(date) { return nasaSstUrlTemplate.replace('{time}', date.toISOString().split('T')[0]); }
         function getLstUrl(date) { return nasaLstUrlTemplate.replace('{time}', date.toISOString().split('T')[0]); }
 
+        // Transparent 1x1 base64 png to gracefully absorb 404 No-Data tiles
+        var emptyTile = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
         var nasaAnomLayer = L.tileLayer(getSstUrl(dataDates[currentIndex]), { 
-            opacity: 0.75, maxZoom: 7, crossOrigin: true, attribution: 'Data &copy; NASA GIBS' 
+            opacity: 0.75, 
+            maxZoom: 12, 
+            maxNativeZoom: 7, 
+            crossOrigin: true, 
+            errorTileUrl: emptyTile, 
+            attribution: 'Data &copy; NASA GIBS' 
         });
 
-        // NEW LAYER implementation
         var nasaLstLayer = L.tileLayer(getLstUrl(dataDates[currentIndex]), {
-            opacity: 0.65, maxZoom: 7, crossOrigin: true, attribution: 'Data &copy; NASA GIBS' 
+            opacity: 0.65, 
+            maxZoom: 12, 
+            maxNativeZoom: 7, 
+            crossOrigin: true, 
+            errorTileUrl: emptyTile, 
+            attribution: 'Data &copy; NASA GIBS' 
         });
 
-        // Dynamically Check for Latest Data (Applying to both map feeds)
         async function checkLatestData() {
             for (let offset = 0; offset <= 7; offset++) {
                 let testDate = new Date();
@@ -404,7 +413,6 @@
                 countryLayer.addLayer(boundaryLayer);
             })
             .catch(e => {
-                console.error("Country lines data temporarily unavailable:", e);
                 document.getElementById('leg-countries').innerHTML += "<br><span style='color:red;'>Data Error</span>";
             });
 
@@ -435,7 +443,7 @@
         });
         map.addControl(new InfoControl());
 
-        // 10. Animation Control Panel (NOW CONTROLS BOTH LAYERS)
+        // 10. Animation Control Panel
         var animationTimer = null;
         var isPlaying = false;
 
@@ -443,13 +451,11 @@
             var frameDate = dataDates[currentIndex];
             var dateStr = formatDateTimeForLegend(frameDate);
 
-            // Update SST Anomaly
             if (map.hasLayer(nasaAnomLayer)) {
                 nasaAnomLayer.setUrl(getSstUrl(frameDate));
                 document.getElementById('ssta-date-time').innerText = dateStr;
             }
 
-            // Update Land Temperature
             if (map.hasLayer(nasaLstLayer)) {
                 nasaLstLayer.setUrl(getLstUrl(frameDate));
                 document.getElementById('lst-date-time').innerText = dateStr;
@@ -569,7 +575,6 @@
                 document.getElementById('leg-lst').style.display = 'none';
             }
 
-            // Stop animation if both timeline layers are hidden
             if (event.name === "NASA SST Anomaly" || event.name === "NASA Land Temperature") {
                 if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer) && isPlaying) {
                     window.stopAnimation();
@@ -577,7 +582,7 @@
             }
         });
 
-        // 12. Map Mouse Hover -> Read Pixel -> Update Legend (Applies only to SST Anomaly)
+        // 12. Map Mouse Hover Logic
         const sstColorStops = [
             { temp: -3.0, r: 102, g: 0, b: 204 },
             { temp: -2.4, r: 0, g: 85, b: 255 },
@@ -628,7 +633,7 @@
         }
 
         map.on('mousemove', function(e) {
-            if (!map.hasLayer(nasaAnomLayer)) return; // Hover strictly applies to SST 
+            if (!map.hasLayer(nasaAnomLayer)) return; 
 
             var foundTemp = null;
             var tiles = nasaAnomLayer._tiles; 
