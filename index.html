@@ -376,13 +376,16 @@
         });
 
         async function checkLatestData() {
-            for (let offset = 0; offset <= 7; offset++) {
+            // Increased offset window to 20 days to account for severe processing latency
+            for (let offset = 0; offset <= 20; offset++) {
                 let testDate = new Date();
                 testDate.setDate(testDate.getDate() - offset);
-                let testUrl = getSstUrl(testDate).replace('{z}/{y}/{x}', '0/0/0');
+                // Ping a tile safely located over the ocean (zoom 2) rather than the 0/0/0 root
+                let testUrl = getSstUrl(testDate).replace('{z}/{y}/{x}', '2/2/1');
                 
                 try {
-                    let response = await fetch(testUrl + "?t=" + new Date().getTime(), { method: 'HEAD', mode: 'cors' });
+                    // Removed the "?t=" query parameter to prevent CDN rejections
+                    let response = await fetch(testUrl, { method: 'HEAD', mode: 'cors' });
                     if (response.ok) {
                         dataDates = [];
                         for (let i = 14 + offset; i >= offset; i--) { 
@@ -448,6 +451,8 @@
         var isPlaying = false;
 
         function updateMapFrames() {
+            if (dataDates.length === 0) return; // Prevent updating if initialization fails
+            
             var frameDate = dataDates[currentIndex];
             var dateStr = formatDateTimeForLegend(frameDate);
 
@@ -476,7 +481,7 @@
 
                 var dateDisplay = L.DomUtil.create('div', 'anim-date', container);
                 dateDisplay.id = 'anim-date-display';
-                dateDisplay.innerText = formatDateTimeForLegend(dataDates[currentIndex]);
+                dateDisplay.innerText = formatDateTimeForLegend(dataDates.length > 0 ? dataDates[currentIndex] : new Date());
 
                 var btnGroup = L.DomUtil.create('div', 'anim-btn-group', container);
 
@@ -501,6 +506,7 @@
                 btnPrev.onclick = function(e) {
                     e.preventDefault();
                     if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' atau 'NASA Land Temperature' dahulu!");
+                    if (dataDates.length === 0) return;
                     if (isPlaying) window.stopAnimation();
                     currentIndex = (currentIndex - 1 + dataDates.length) % dataDates.length;
                     updateMapFrames();
@@ -509,6 +515,7 @@
                 btnPlay.onclick = function(e) {
                     e.preventDefault();
                     if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' atau 'NASA Land Temperature' dahulu!");
+                    if (dataDates.length === 0) return;
                     
                     if (isPlaying) {
                         window.stopAnimation();
@@ -526,6 +533,7 @@
                 btnNext.onclick = function(e) {
                     e.preventDefault();
                     if (!map.hasLayer(nasaAnomLayer) && !map.hasLayer(nasaLstLayer)) return alert("Sila aktifkan layer 'NASA SST Anomaly' atau 'NASA Land Temperature' dahulu!");
+                    if (dataDates.length === 0) return;
                     if (isPlaying) window.stopAnimation();
                     currentIndex = (currentIndex + 1) % dataDates.length;
                     updateMapFrames();
